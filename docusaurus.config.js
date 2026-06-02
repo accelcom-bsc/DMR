@@ -19,6 +19,7 @@ const config = {
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
+  onBrokenAnchors: 'warn',
 
   i18n: {
     defaultLocale: 'en',
