@@ -34,7 +34,7 @@ dmr_set_policy_stride(2);      // multiplier for ROUND_POLICY
 dmr_set_policy_pref_nodes(8);  // preferred count for QUEUE_POLICY
 ```
 
-Or set them via environment variables (see [Configuration](../user-guide/configuration)):
+Or set them via environment variables (see [Configuration](../configuration)):
 
 ```bash
 DMR_DEFAULT_POLICY_MIN=2 DMR_DEFAULT_POLICY_MAX=16 dmr mpirun -n 2 ./my_app
