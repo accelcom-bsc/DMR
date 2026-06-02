@@ -27,6 +27,7 @@ Inside the cluster, create `hello_dmr.c`:
 ```c
 #include <mpi.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "dmr.h"
 
 static void save(void) { /* called on leaving processes */ }
