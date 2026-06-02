@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 4
 title: Compilación manual en MareNostrum 5
 ---
 
