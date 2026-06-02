@@ -3,67 +3,86 @@ sidebar_position: 3
 title: Reconfiguration Callbacks
 ---
 
-Reconfiguration callbacks are functions your application provides to DMR so it can notify you when the process set changes.
+`DMR_AUTO` accepts three callbacks. Which one is invoked depends on what DMR needs your application to do at each reconfiguration step.
 
-## on_expand
+## redist_func — save or redistribute data
 
-Called on **all surviving ranks** after new processes have been added and `MPI_COMM_WORLD` has been updated to include them.
+Called on ranks that are **about to exit** when a reconfiguration completes. Use it to transfer your data to the surviving processes.
+
+**With checkpoint-restart** (`DMR_CHECKPOINT_RESTART=1`, default): write data to a shared filesystem.
 
 ```c
-void on_expand(void)
+void save_checkpoint(void)
 {
-    int rank, size;
+    int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    rebalance_work(rank, size);
+    char filename[64];
+    snprintf(filename, sizeof(filename), "checkpoint_rank%d.bin", rank);
+    FILE *f = fopen(filename, "wb");
+    fwrite(my_data, sizeof(double), my_data_size, f);
+    fclose(f);
 }
 ```
 
-Use it to: broadcast or scatter data to new ranks, recreate derived communicators, rebalance workload.
-
-## on_shrink
-
-Called on **all surviving ranks** after excess processes have exited and `MPI_COMM_WORLD` has been updated.
+**With intercommunicator** (`DMR_CHECKPOINT_RESTART=0`): send data to new processes via `DMR_INTERCOMM`.
 
 ```c
-void on_shrink(void)
+void send_via_intercomm(void)
 {
-    int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    rebalance_work(rank, size);
+    if (!dmr_intercomm_available()) return;
+    // DMR_INTERCOMM connects old and new processes
+    MPI_Send(my_data, my_data_size, MPI_DOUBLE, 0, TAG, DMR_INTERCOMM);
 }
 ```
 
-## on_exit
+## restart_func — restore data
 
-Called on a **rank that is being removed**. After this callback returns, DMR terminates the rank.
+Called on processes that have **just been spawned or restarted** after a reconfiguration. Use it to read data saved by `redist_func`.
 
 ```c
-void on_exit(void)
+void load_checkpoint(void)
 {
-    MPI_Send(my_data, my_data_size, MPI_DOUBLE, 0, TAG, MPI_COMM_WORLD);
+    if (dmr_get_reconfig_count() == 0) return;  // skip on first launch
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    char filename[64];
+    snprintf(filename, sizeof(filename), "checkpoint_rank%d.bin", rank);
+    FILE *f = fopen(filename, "rb");
+    fread(my_data, sizeof(double), my_data_size, f);
+    fclose(f);
+}
+```
+
+Pass `restart_func` as the second argument of `DMR_AUTO`:
+
+```c
+DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_checkpoint(), cleanup());
+```
+
+## finalize_func — clean up resources
+
+Called on any rank that is about to terminate (whether due to reconfiguration or normal exit). Free heap memory, close file handles, etc.
+
+```c
+void cleanup(void)
+{
     free(my_data);
 }
 ```
 
-:::caution
-Do **not** call `MPI_Finalize` inside `on_exit`. DMR handles rank termination after the callback returns.
-:::
-
 ## Ordering guarantees
 
-- `on_exit` runs on leaving ranks **before** `on_shrink` runs on surviving ranks.
-- When `on_shrink` runs, the leaving ranks have already exited `MPI_COMM_WORLD`.
-- `MPI_COMM_WORLD` is valid and updated in both `on_expand` and `on_shrink`.
+1. `redist_func` is called on **exiting ranks** while the intercommunicator is still valid.
+2. `finalize_func` is called on the **same exiting ranks** after `redist_func`.
+3. `dmr_finalize()` terminates the rank.
+4. Surviving ranks continue their `dmr_check` call and proceed with the updated `MPI_COMM_WORLD`.
 
-## Common pattern
-
-Many applications use the same function for both expand and shrink:
+## Using dmr_get_reconfig_count()
 
 ```c
-DMR_AUTO(dmr_check(USE_POLICY),
-         redistribute(),
-         redistribute(),
-         send_data_and_cleanup());
+int count = dmr_get_reconfig_count();
+// 0 = first launch, >0 = number of reconfigurations that have occurred
 ```
+
+This is the standard way to skip checkpoint loading on first launch.

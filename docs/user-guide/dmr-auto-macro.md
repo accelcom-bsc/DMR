@@ -3,58 +3,78 @@ sidebar_position: 2
 title: The DMR_AUTO Macro
 ---
 
-`DMR_AUTO` is a convenience macro that wraps the three DMR lifecycle functions and automatically dispatches to the correct callback based on the outcome.
+`DMR_AUTO` dispatches to the right callback based on the `DMRAction` returned by a DMR function.
 
 ## Signature
 
 ```c
-DMR_AUTO(call, on_expand, on_shrink, on_exit)
+DMR_AUTO(the_action, redist_func, restart_func, finalize_func)
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `call` | One of `dmr_init(...)`, `dmr_check(...)`, or `dmr_finalize()` |
-| `on_expand` | Expression evaluated when processes are **added** |
-| `on_shrink` | Expression evaluated when processes are **removed** |
-| `on_exit` | Expression evaluated when **this rank is being removed** |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `the_action` | `DMRAction` | Return value of `dmr_init`, `dmr_check`, or `dmr_finalize` |
+| `redist_func` | expression | Called when data must be **saved/redistributed** (checkpoint or intercomm send) |
+| `restart_func` | expression | Called when data must be **restored** (process restarting after reconfiguration) |
+| `finalize_func` | expression | Called for **cleanup** before a rank exits |
 
 ## Dispatch table
 
-| DMRAction | Macro behaviour |
-|-----------|-----------------|
-| `DMR_NO_ACTION` | No callback invoked |
-| `DMR_RECONF` (expand) | Evaluates `on_expand` |
-| `DMR_RECONF` (shrink) | Evaluates `on_shrink` |
-| `DMR_EXIT` | Evaluates `on_exit`, then terminates the rank |
-| Error | Prints an error and calls `MPI_Abort` |
+| DMRAction | What DMR_AUTO does |
+|-----------|--------------------|
+| `DMR_NO_ACTION` | Nothing |
+| `DMR_RECONF` | Calls `dmr_reconfigure()`. If that returns `DMR_REDIST_FINALIZE`, calls `redist_func`, `finalize_func`, then `dmr_finalize()` (rank exits) |
+| `DMR_RESTART_RECONF` | Calls `restart_func`, then `dmr_reconfigure()` |
+| `DMR_REDIST_FINALIZE` | Calls `redist_func`, `finalize_func`, then `dmr_finalize()` (rank exits) |
+| `DMR_FINALIZE` | Calls `finalize_func`, then `dmr_finalize()` (rank exits) |
+| `DMR_CLEANUP` | Calls `finalize_func` |
+| `DMR_ERROR` | Does nothing (handle errors yourself if needed) |
 
 ## Examples
 
+### Init — checkpoint-restart pattern
+
 ```c
-// dmr_init — no callbacks needed at startup
-DMR_AUTO(dmr_init(argc, argv), (void)NULL, (void)NULL, (void)NULL);
+// On restart after reconfiguration, load_checkpoint() reads the saved state.
+DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_checkpoint(), cleanup());
+```
 
-// dmr_check — full reconfiguration handling
-DMR_AUTO(dmr_check(USE_POLICY),
-         redistribute_data(),   // on_expand
-         redistribute_data(),   // on_shrink
-         cleanup());            // on_exit
+### Check — checkpoint-restart pattern
 
-// dmr_finalize — only exit callback matters
+```c
+// save_checkpoint() is called on ranks that are about to exit.
+DMR_AUTO(dmr_check(ROUND_POLICY), save_checkpoint(), (void)NULL, cleanup());
+```
+
+### Check — intercommunicator pattern
+
+```c
+// With DMR_CHECKPOINT_RESTART=0, use DMR_INTERCOMM to send data directly.
+DMR_AUTO(dmr_check(ROUND_POLICY), send_via_intercomm(), recv_via_intercomm(), cleanup());
+```
+
+### Finalize
+
+```c
 DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
 ```
 
+## Using (void)NULL
+
+Pass `(void)NULL` for any callback you don't need.
+
 ## Without the macro
 
-If you prefer explicit control, handle the returned `DMRAction` yourself:
-
 ```c
-DMRAction action = dmr_check(USE_POLICY);
+DMRAction action = dmr_check(ROUND_POLICY);
 if (action == DMR_RECONF) {
-    redistribute_data();
-} else if (action == DMR_EXIT) {
-    cleanup();
-    MPI_Finalize();
-    exit(0);
+    if (dmr_reconfigure() == DMR_REDIST_FINALIZE) {
+        save_checkpoint();
+        cleanup();
+        dmr_finalize();
+    }
+} else if (action == DMR_RESTART_RECONF) {
+    load_checkpoint();
+    dmr_reconfigure();
 }
 ```

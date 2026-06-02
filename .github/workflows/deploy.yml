@@ -17,6 +17,8 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
 
       - name: Build and deploy
+        env:
+          BASE_URL: /dmr_doc/
         run: |
           nix develop --command bash -c "npm ci && npm run build"
 

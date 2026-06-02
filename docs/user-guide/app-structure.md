@@ -3,60 +3,93 @@ sidebar_position: 1
 title: Application Structure
 ---
 
-A DMR application follows a straightforward structure built around three lifecycle functions and a main loop.
+A DMR application is built around three lifecycle functions and a main loop. The central concept is that DMR returns a `DMRAction` value telling you what to do next, and `DMR_AUTO` handles the dispatch automatically.
 
 ## Lifecycle overview
 
 ```
 MPI_Init
-  └─ dmr_init          ← initialize DMR state and connect to Slurm
+  └─ dmr_init       ← initialize DMR; may return DMR_RESTART_RECONF on a restarted process
        └─ [ main loop ]
-            └─ dmr_check    ← evaluate policy, trigger reconfiguration if needed
-       └─ dmr_finalize  ← clean up DMR state
+            └─ dmr_check   ← suggest a policy; returns DMR_RECONF when ready to reconfigure
+            └─ dmr_reconfigure (called automatically by DMR_AUTO)
+       └─ dmr_finalize
 MPI_Finalize
+```
+
+## Typical main loop
+
+```c
+#include <mpi.h>
+#include "dmr.h"
+
+static void save_checkpoint(void)  { /* write data to disk or send via DMR_INTERCOMM */ }
+static void load_checkpoint(void)  { /* read data written by previous configuration */ }
+static void cleanup(void)          { /* free resources */ }
+
+int main(int argc, char *argv[])
+{
+    MPI_Init(&argc, &argv);
+
+    /* dmr_init may return DMR_RESTART_RECONF if this process was spawned
+       as part of an expansion — load_checkpoint() handles that case. */
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_checkpoint(), cleanup());
+
+    dmr_set_policy_min_nodes(2);
+    dmr_set_policy_max_nodes(8);
+
+    while (should_keep_running()) {
+        DMR_AUTO(dmr_check(ROUND_POLICY), save_checkpoint(), (void)NULL, cleanup());
+        do_work();
+    }
+
+    DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
+    MPI_Finalize();
+    return 0;
+}
 ```
 
 ## dmr_init
 
-Call `dmr_init` immediately after `MPI_Init`, passing the same `argc` and `argv`:
+Call `dmr_init` immediately after `MPI_Init`. **Collective.**
+
+On first launch it returns `DMR_NO_ACTION`. When a process is restarted after a reconfiguration it may return `DMR_RESTART_RECONF`, which triggers the `restart_func` argument in `DMR_AUTO`.
+
+Use `dmr_get_reconfig_count()` to tell apart first launch from a restart:
 
 ```c
-MPI_Init(&argc, &argv);
-DMR_AUTO(dmr_init(argc, argv), expand_cb(), shrink_cb(), exit_cb());
-```
-
-`dmr_init` is a **collective** operation — all MPI ranks must call it.
-
-## The main loop
-
-On each iteration:
-
-1. Call `dmr_check` to let DMR evaluate whether a reconfiguration should happen.
-2. If a reconfiguration occurs, DMR invokes your callbacks and adjusts `MPI_COMM_WORLD`.
-3. Continue with your computation using the updated communicator.
-
-```c
-while (should_keep_running()) {
-    DMR_AUTO(dmr_check(USE_POLICY), expand_cb(), shrink_cb(), exit_cb());
-    do_work();
+void load_checkpoint(void)
+{
+    if (dmr_get_reconfig_count() == 0) return;  // first launch, nothing to load
+    // ... read checkpoint written by the previous configuration
 }
 ```
 
+## dmr_check
+
+Call `dmr_check` inside the main loop with a `DMRSuggestion`. **Collective.**
+
+When DMR decides to reconfigure it returns `DMR_RECONF`. `DMR_AUTO` then calls `dmr_reconfigure()` internally, which handles the MPI communicator setup. The leaving processes receive `DMR_REDIST_FINALIZE` from `dmr_reconfigure()` — `DMR_AUTO` calls `redist_func` and `finalize_func` on them and terminates those ranks.
+
+## dmr_reconfigure
+
+Called automatically by `DMR_AUTO` when `DMR_RECONF` is returned. Do not call it manually unless you handle `DMRAction` values yourself.
+
 ## dmr_finalize
 
-Call `dmr_finalize` after the main loop and before `MPI_Finalize`:
+Call `dmr_finalize` after the main loop and before `MPI_Finalize`. **Collective.**
 
-```c
-DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, exit_cb());
-MPI_Finalize();
-```
+## Communicator and checkpoint-restart
 
-`dmr_finalize` is also **collective**.
+DMR supports two redistribution strategies, selected at compile time:
 
-## Communicator validity
+| Strategy | `DMR_CHECKPOINT_RESTART` | How it works |
+|----------|--------------------------|--------------|
+| **Checkpoint-restart** (default) | `1` | Processes write data before reconfiguring; new processes read it on restart via `restart_func` |
+| **Intercommunicator** | `0` | DMR exposes `DMR_INTERCOMM` so old and new processes exchange data directly via MPI |
 
-After a reconfiguration, `MPI_COMM_WORLD` refers to the **new** set of processes. Any cached communicators, derived datatypes, or MPI windows that depend on the old communicator must be freed in the shrink callback and recreated in the expand callback.
+When using the intercommunicator, check `dmr_intercomm_available()` before using `DMR_INTERCOMM`.
 
 ## Thread safety
 
-DMR is **not thread-safe**. Do not call `dmr_check` or `dmr_set_policy` from multiple threads concurrently.
+DMR is **not thread-safe**. Do not call any DMR function from multiple threads concurrently.

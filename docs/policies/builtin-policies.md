@@ -3,56 +3,63 @@ sidebar_position: 2
 title: Built-in Policies
 ---
 
-## always_stay
+## ROUND_POLICY
+
+Doubles the current node count at each reconfiguration step. When the result would exceed `max_nodes`, it wraps back to `min_nodes`.
 
 ```c
-DMRPolicy *dmr_policy_always_stay(void);
+dmr_set_policy_min_nodes(1);
+dmr_set_policy_max_nodes(8);
+dmr_set_policy_stride(2);      // default: 2
+
+DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
 ```
 
-Never reconfigures. Useful for disabling reconfiguration during debugging.
+With `MIN=1`, `MAX=8`, `STRIDE=2`: sequence is 1 → 2 → 4 → 8 → 1 → …
 
-## list
+**Environment variables:** `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX`, `DMR_DEFAULT_POLICY_STRIDE`
+
+## LIST_POLICY
+
+Iterates through a fixed sequence of configurations and repeats. Useful for benchmarking specific node counts.
+
+**Environment variables:** `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX`
+
+## CE_POLICY
+
+Adjusts node count to keep communication efficiency near a target value. Requires `DMR_USE_TALP=1` at compile time.
 
 ```c
-DMRPolicy *dmr_policy_list(void);
+// Target 80% communication efficiency
+// DMR_TALP_TARGET_CE=0.8 DMR_TALP_SENSITIVITY=15
+DMR_AUTO(dmr_check(CE_POLICY), save(), (void)NULL, cleanup());
 ```
 
-Cycles through a fixed list of node counts in order, then repeats. Useful for benchmarking.
+**Environment variables:** `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX`, `DMR_TALP_TARGET_CE`, `DMR_TALP_SENSITIVITY`
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DMR_DEFAULT_POLICY_MIN` | `1` | Start of the list |
-| `DMR_DEFAULT_POLICY_MAX` | `1` | End of the list |
+## SLURM4DMR_ROUND_POLICY / SLURM4DMR_CE_POLICY / SLURM4DMR_QUEUE_POLICY
 
-## round
+Variants of the above policies adapted for Slurm4DMR mode. `SLURM4DMR_QUEUE_POLICY` tries to maintain the preferred node count while respecting `min_nodes` and `max_nodes`.
 
 ```c
-DMRPolicy *dmr_policy_round(void);
+dmr_set_policy_pref_nodes(4);  // target node count for QUEUE_POLICY
+DMR_AUTO(dmr_check(SLURM4DMR_QUEUE_POLICY), save(), (void)NULL, cleanup());
 ```
 
-Multiplies the current node count by `DMR_DEFAULT_POLICY_STRIDE` each step. Wraps back to `min_nodes` when `max_nodes` is exceeded.
+**Environment variables:** `DMR_DEFAULT_POLICY_PREF`
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum nodes; wrap target |
-| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum nodes; wrap threshold |
-| `DMR_DEFAULT_POLICY_STRIDE` | `2` | Multiplier applied each step |
+## Manual control: SHOULD_EXPAND / SHOULD_SHRINK / SHOULD_STAY
 
-**Example:** `MIN=1`, `MAX=8`, `STRIDE=2` → sequence: 1 → 2 → 4 → 8 → 1 → …
-
-## ce (Communication Efficiency)
+Pass these when your application decides when to reconfigure:
 
 ```c
-#if defined(COMPILED_WITH_TALP)
-DMRPolicy *dmr_policy_ce(void);
-#endif
+// Override the number of nodes for the next operation
+dmr_set_nodes_next_expand(2);
+DMR_AUTO(dmr_check(SHOULD_EXPAND), save(), (void)NULL, cleanup());
+
+dmr_set_nodes_next_shrink(1);
+DMR_AUTO(dmr_check(SHOULD_SHRINK), save(), (void)NULL, cleanup());
+
+// Skip this iteration entirely
+DMR_AUTO(dmr_check(SHOULD_STAY), (void)NULL, (void)NULL, (void)NULL);
 ```
-
-Measures the application's communication efficiency and adjusts node count to keep it near a target. Requires `DMR_USE_TALP=1`.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum nodes |
-| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum nodes |
-| `DMR_TALP_TARGET_CE` | `0.8` | Target communication efficiency (0–1) |
-| `DMR_TALP_SENSITIVITY` | `15` | Adjustment sensitivity |

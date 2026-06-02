@@ -1,68 +1,30 @@
 ---
 sidebar_position: 2
-title: dmr_policies.h
+title: Policy API summary
 ---
 
-```c
-#include "dmr_policies.h"
-```
+DMR's policy system is entirely contained in `dmr.h` — there is no separate `dmr_policies.h`. Policies are selected by passing a `DMRSuggestion` enum value to `dmr_check`.
 
-## Types
-
-### DMRPolicyOp
+## Quick reference
 
 ```c
-typedef enum { DMR_POLICY_STAY, DMR_POLICY_EXPAND, DMR_POLICY_SHRINK } DMRPolicyOp;
+#include "dmr.h"
+
+// Select policy
+DMRAction action = dmr_check(ROUND_POLICY);
+
+// Configure policy bounds (collective)
+dmr_set_policy_min_nodes(2);
+dmr_set_policy_max_nodes(16);
+dmr_set_policy_stride(2);
+dmr_set_policy_pref_nodes(8);   // for SLURM4DMR_QUEUE_POLICY
+
+// Manual sizing overrides (rank 0 only, reset after each reconf)
+dmr_set_nodes_next_expand(4);
+dmr_set_ppn_next_expand(8);     // processes per node
+dmr_set_nodes_next_shrink(2);
 ```
 
-### DMRPolicySuggestion
+For the full type and function documentation see [dmr.h](dmr-h).
 
-```c
-typedef struct {
-    DMRPolicyOp operation;
-    int         nodes;
-    int         processes;
-} DMRPolicySuggestion;
-```
-
-### DMRPolicyContext
-
-Passed to `populate` and `run` callbacks. See [Policy Context Reference](../policies/policy-context-reference) for the full field list.
-
-### DMRPolicy
-
-```c
-struct DMRPolicyStruct {
-    char const          *name;
-    size_t               state_size;
-    void                *state;
-    DMRPolicyPopulateFn  populate;
-    DMRPolicyRunFn       run;
-    DMRPolicySaveFn      save;
-    DMRPolicyLoadFn      load;
-    DMRPolicyDestroyFn   destroy;
-};
-```
-
-## Built-in policy constructors
-
-```c
-DMRPolicy *dmr_policy_always_stay(void);
-DMRPolicy *dmr_policy_list(void);
-DMRPolicy *dmr_policy_round(void);
-#if defined(COMPILED_WITH_TALP)
-DMRPolicy *dmr_policy_ce(void);
-#endif
-```
-
-## Decision helpers
-
-```c
-DMRPolicySuggestion dmr_policy_stay(void);
-DMRPolicySuggestion dmr_policy_expand_fixed(int nodes, int processes);
-DMRPolicySuggestion dmr_policy_shrink_fixed(int nodes, int processes);
-DMRPolicySuggestion dmr_policy_expand_to(int target, int procs, DMRPolicyContext const *ctx);
-DMRPolicySuggestion dmr_policy_shrink_to(int target, int procs, DMRPolicyContext const *ctx);
-DMRPolicySuggestion dmr_policy_expand_to_max(DMRPolicyContext const *ctx);
-DMRPolicySuggestion dmr_policy_shrink_to_min(DMRPolicyContext const *ctx);
-```
+For usage patterns see [Policies Overview](../policies/overview) and [Built-in Policies](../policies/builtin-policies).

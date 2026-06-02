@@ -1,87 +1,51 @@
 ---
-sidebar_position: 3
-title: MareNostrum 5 Manual Install
+sidebar_position: 4
+title: MareNostrum 5 — Manual Build
 ---
 
-On MareNostrum 5 you can simply load the pre-installed modules (recommended):
+Use this guide only if you need to **compile DMR from source** on MareNostrum 5. For normal use, `module load dmr` is all you need (see [Installation](installation)).
+
+## 1. Load the dependency modules
+
+Instead of building OpenPMIX, PRRTE, and Open MPI from scratch, load the pre-built MN5 modules:
 
 ```bash
 module use /apps/GPP/DMR/dmr-modules
 module load openpmix-for-dmr
 module load prrte-for-dmr
 module load openmpi-for-dmr
-module load dlb-for-dmr   # only needed for the CE policy
+module load dlb-for-dmr   # optional — only for CE policy
 ```
 
-If you want to build the dependencies manually, follow the instructions below. Set your prefix variables first:
+These set `OPENPMIX_PREFIX`, `PRRTE_PREFIX`, `OMPI_PREFIX`, and `DLB_PREFIX` automatically.
+
+## 2. Build DMR
 
 ```bash
-export OPENPMIX_PREFIX=/path/to/openpmix
-export PRRTE_PREFIX=/path/to/prrte
-export OMPI_PREFIX=/path/to/ompi
+git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
+cd dmr
+cmake -B build -DCMAKE_INSTALL_PREFIX=/path/to/install
+cmake --build build -j112
+cmake --install build
 ```
 
-## OpenPMIX
+Set additional options as needed:
 
 ```bash
-git clone https://github.com/openpmix/openpmix.git
-cd openpmix
-git submodule update --init
-./autogen.pl
-./configure --prefix=$OPENPMIX_PREFIX --disable-debug
-make -j112 install
-cd ..
-
-export LD_LIBRARY_PATH=$OPENPMIX_PREFIX/lib:$LD_LIBRARY_PATH
+cmake -B build \
+  -DCMAKE_INSTALL_PREFIX=/path/to/install \
+  -DDMR_PROCS_PER_NODE=112 \
+  -DDMR_USE_TALP=1
 ```
 
-## PRRTE
+See [Configuration](../user-guide/configuration) for the full list of CMake options.
+
+## Building the dependencies manually (advanced)
+
+If you cannot use the pre-built modules, follow the same steps as [Other systems](installation?system=other) using MN5-specific paths. For Open MPI, add the MN5 UCX path:
 
 ```bash
-git clone https://github.com/openpmix/prrte.git
-cd prrte
-git submodule update --init
-./autogen.pl
-./configure --prefix=$PRRTE_PREFIX --disable-debug \
-  --with-pmix=$OPENPMIX_PREFIX --without-slurm --without-pbs
-make -j112 install
-cd ..
+./configure ... --with-ucx=/apps/GPP/UCX/1.16.0/GCC
 ```
 
-## Open MPI
-
-```bash
-git clone https://github.com/open-mpi/ompi.git
-cd ompi
-git submodule update --init config/oac 3rd-party/pympistandard
-./autogen.pl --no-3rdparty openpmix,prrte
-./configure --prefix=$OMPI_PREFIX --disable-debug \
-  --with-libevent=external --with-hwloc=external \
-  --with-pmix=$OPENPMIX_PREFIX --with-prrte=$PRRTE_PREFIX \
-  --with-ucx=/apps/GPP/UCX/1.16.0/GCC
-make -j112 install
-cd ..
-
-export PATH=$OMPI_PREFIX/bin:$PATH
-export LD_LIBRARY_PATH=$OMPI_PREFIX/lib:$LD_LIBRARY_PATH
-```
-
-## TALP / DLB (optional)
-
-Required only for the `ce` policy. Export `DLB_PREFIX` to your desired location.
-
-```bash
-export DLB_PREFIX=/path/to/dlb
-
-wget https://pm.bsc.es/ftp/dlb/releases/dlb-3.5.2.tar.gz
-tar -xvf dlb-3.5.2.tar.gz
-cd dlb-3.5.2
-./configure --prefix=$DLB_PREFIX --with-mpi=$OMPI_PREFIX
-make -j112
-make install
-cd ..
-
-# Add to .bashrc:
-LD_PRELOAD="$DLB_PREFIX/lib/libdlb_mpi.so"
-export DLB_ARGS="--talp --talp-external-profiler --quiet"
-```
+And use `-j112` for all `make` commands.

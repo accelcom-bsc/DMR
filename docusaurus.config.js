@@ -10,7 +10,7 @@ const config = {
   future: { v4: true },
 
   url: 'https://iarejula-bsc.github.io',
-  baseUrl: '/',
+  baseUrl: process.env.BASE_URL ?? '/dmr_doc/',
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
