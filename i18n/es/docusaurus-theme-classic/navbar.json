@@ -1,0 +1,30 @@
+{
+  "title": {
+    "message": "DMR",
+    "description": "The title in the navbar"
+  },
+  "item.label.Getting Started": {
+    "message": "Primeros pasos",
+    "description": "Navbar item with label Getting Started"
+  },
+  "item.label.User Guide": {
+    "message": "Guía de usuario",
+    "description": "Navbar item with label User Guide"
+  },
+  "item.label.API Reference": {
+    "message": "Referencia de API",
+    "description": "Navbar item with label API Reference"
+  },
+  "item.label.Examples": {
+    "message": "Ejemplos",
+    "description": "Navbar item with label Examples"
+  },
+  "item.label.References": {
+    "message": "Referencias",
+    "description": "Navbar item with label References"
+  },
+  "item.label.GitLab": {
+    "message": "GitLab",
+    "description": "Navbar item with label GitLab"
+  }
+}

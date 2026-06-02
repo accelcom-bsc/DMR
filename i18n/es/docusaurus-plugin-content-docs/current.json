@@ -1,0 +1,10 @@
+{
+  "version.label": {
+    "message": "Siguiente",
+    "description": "The label for version current"
+  },
+  "sidebar.userGuide.category.Policies": {
+    "message": "Políticas",
+    "description": "The label for category 'Policies' in sidebar 'userGuide'"
+  }
+}
