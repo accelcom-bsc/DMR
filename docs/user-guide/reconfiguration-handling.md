@@ -88,14 +88,6 @@ void cleanup(void)
 }
 ```
 
-## Ordering guarantees
-
-1. `redist_func` runs on exiting ranks while `DMR_INTERCOMM` is still valid.
-2. `finalize_func` runs on the same exiting ranks after `redist_func`.
-3. `dmr_finalize()` terminates the rank.
-4. Surviving ranks continue from `dmr_check` with the updated `MPI_COMM_WORLD`.
-
-
 ## Without the macro
 
 ```c
