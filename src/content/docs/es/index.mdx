@@ -1,0 +1,33 @@
+---
+title: Documentación de DMR
+description: Biblioteca de reconfiguración dinámica MPI del Barcelona Supercomputing Center.
+template: splash
+hero:
+  title: DMR
+  tagline: Reconfiguración dinámica MPI — escala tu aplicación HPC en tiempo de ejecución sin reiniciarla.
+  actions:
+    - text: Empezar
+      link: /es/getting-started/what-is-dmr/
+      icon: right-arrow
+      variant: primary
+    - text: Ver en GitLab
+      link: https://gitlab.bsc.es/accelcom/releases/dmr/dmr
+      icon: external
+---
+
+import { CardGrid, Card } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Escalado dinámico" icon="rocket">
+    Amplía o reduce tu asignación de nodos Slurm en tiempo de ejecución, sin reiniciar.
+  </Card>
+  <Card title="Basado en políticas" icon="setting">
+    Elige una política predefinida o implementa la tuya propia con una sencilla interfaz en C.
+  </Card>
+  <Card title="Nativo de MPI" icon="puzzle">
+    Se integra directamente con Open MPI. Tu código MPI existente sigue funcionando.
+  </Card>
+  <Card title="API mínima" icon="document">
+    Tres funciones: `dmr_init`, `dmr_check`, `dmr_finalize`. Más una macro.
+  </Card>
+</CardGrid>
