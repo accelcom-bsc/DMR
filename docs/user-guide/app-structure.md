@@ -23,7 +23,7 @@ MPI_Finalize
 #include <mpi.h>
 #include "dmr.h"
 
-static void save_checkpoint(void)  { /* write data to disk or send via DMR_INTERCOMM */ }
+static void save_checkpoint(void)  { /* persist state on disk */ }
 static void load_checkpoint(void)  { /* read data written by previous configuration */ }
 static void cleanup(void)          { /* free resources */ }
 
