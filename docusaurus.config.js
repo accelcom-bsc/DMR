@@ -10,9 +10,7 @@ const config = {
   future: { v4: true },
 
   url: 'https://iarejula-bsc.github.io',
-  baseUrl: '/dmr_doc/',
-  organizationName: 'iarejula-bsc',
-  projectName: 'dmr_doc',
+  baseUrl: '/',
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
