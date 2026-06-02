@@ -78,6 +78,12 @@ const config = {
             label: 'Examples',
             position: 'left',
           },
+          {
+            type: 'docSidebar',
+            sidebarId: 'references',
+            label: 'References',
+            position: 'left',
+          },
           { type: 'localeDropdown', position: 'right' },
           {
             href: 'https://gitlab.bsc.es/accelcom/releases/dmr/dmr',

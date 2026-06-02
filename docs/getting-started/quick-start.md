@@ -1,9 +1,9 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 title: Quick Start
 ---
 
-This guide shows the minimal steps to add DMR to an existing MPI application.
+This guide shows the minimal steps to add DMR to an existing MPI application. See [Installation](installation) first if you haven't set up dependencies yet.
 
 ## 1. Include the headers
 
@@ -56,8 +56,8 @@ int main(int argc, char **argv)
 #include "dmr.h"
 #include "dmr_policies.h"
 
-static void redistribute(void) { /* move your data here */ }
-static void cleanup(void)      { /* free resources here */ }
+static void redistribute(void) { /* redistribute data across new process set */ }
+static void cleanup(void)      { /* free resources before this rank exits */ }
 
 int main(int argc, char **argv)
 {
@@ -81,5 +81,5 @@ int main(int argc, char **argv)
 
 ```bash
 mpicc -o my_app my_app.c -ldmr
-mpirun -n 4 ./my_app
+DMR_DEFAULT_POLICY_MIN=1 DMR_DEFAULT_POLICY_MAX=8 mpirun -n 2 ./my_app
 ```

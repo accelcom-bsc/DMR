@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 6
 title: Modes of Operation
 ---
 
@@ -21,20 +21,64 @@ Slurm4DMR is currently only intended to run on **MareNostrum 5**.
 
 **When to use it:** when your cluster does not support job resizing, or when you need more control over resource allocation.
 
-### Setting up Slurm4DMR
+### Installing Slurm4DMR
 
-1. Ensure all submodules are checked out:
-   ```bash
-   git submodule update --init --recursive
-   ```
-2. Navigate to `tools/slurm` and follow the README to install Slurm4DMR.
-3. Set the environment variable and point to the installation:
-   ```bash
-   export SLURM4DMR=1
-   export SLURM4DMR_ROOT=/path/to/slurm4dmr
-   ```
-4. Recompile DMR against the Slurm4DMR installation.
+On MareNostrum 5 you can load the pre-installed OpenSSL module:
 
-## Connecting to system-default Slurm
+```bash
+module use /apps/GPP/DMR/dmr-modules
+module load openssl-for-slurm4dmr
+```
 
-The CMake script detects your system's Slurm installation automatically. If detection fails, follow the [manual Slurm connection guide](https://gitlab.bsc.es/accelcom/releases/dmr/dmr/-/wikis/Connecting-to-System-Default-Slurm).
+Then build and install:
+
+```bash
+export SLURM_ROOT="$PWD/slurm-install"   # edit to your liking
+
+cd custom-slurm
+
+# If NOT using the MareNostrum 5 module, set:
+# export OPENSSL_PATH=/path/to/openssl
+
+./configure --prefix=$SLURM_ROOT \
+  --sysconfdir=$SLURM_ROOT/slurm-confdir \
+  --without-pmix \
+  --with-ssl=$OPENSSL_PATH
+
+make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j$(nproc)
+make install
+```
+
+### Building DMR against Slurm4DMR
+
+Make sure all submodules are checked out:
+
+```bash
+git submodule update --init --recursive
+```
+
+Then point DMR to your Slurm4DMR installation:
+
+```bash
+export SLURM4DMR=1
+export SLURM4DMR_ROOT=$SLURM_ROOT
+
+cmake -B build
+cmake --build build
+```
+
+### OpenSSL (manual install)
+
+If you cannot use the pre-installed module, build OpenSSL 1.0.2j from source:
+
+```bash
+git clone --depth 1 --branch OpenSSL_1_0_2j https://github.com/openssl/openssl
+```
+
+In `Makefile`, add `-fPIC` to the `CFLAG` line. Then:
+
+```bash
+./config --prefix=/path/to/openssl
+make -j$(nproc) install
+export LD_LIBRARY_PATH=/path/to/openssl/lib:$LD_LIBRARY_PATH
+```
