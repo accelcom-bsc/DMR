@@ -27,4 +27,4 @@ dmr_set_nodes_next_shrink(2);
 
 For the full type and function documentation see [dmr.h](dmr-h).
 
-For usage patterns see [Policies Overview](../policies/overview) and [Built-in Policies](../policies/builtin-policies).
+For usage patterns see [Policies Overview](../user-guide/policies/overview) and [Built-in Policies](../user-guide/policies/builtin-policies).

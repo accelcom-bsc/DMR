@@ -124,4 +124,4 @@ minidmr stop
 
 - [Installation](installation): set up DMR on a real cluster
 - [Application Structure](../user-guide/app-structure): understand the full lifecycle
-- [Policies Overview](../policies/overview): choose or implement a scaling policy
+- [Policies Overview](../user-guide/policies/overview): choose or implement a scaling policy

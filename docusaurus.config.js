@@ -67,12 +67,6 @@ const config = {
           },
           {
             type: 'docSidebar',
-            sidebarId: 'policies',
-            label: 'Policies',
-            position: 'left',
-          },
-          {
-            type: 'docSidebar',
             sidebarId: 'api',
             label: 'API Reference',
             position: 'left',

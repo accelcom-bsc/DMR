@@ -153,7 +153,7 @@ DMR supports two redistribution strategies, selected at compile time:
 | **Checkpoint-restart** (default) | `1` | Old processes save state to disk and exit; new processes start from the beginning of the executable and restore state via `restart_func` |
 | **Intercommunicator** | `0` | Old and new processes are alive simultaneously; they exchange data directly via `DMR_INTERCOMM`, then the old ones exit. New processes also start from the beginning of the executable. |
 
-See [Intercommunicator mode](intercommunicator) for a detailed explanation of the `DMR_CHECKPOINT_RESTART=0` workflow.
+See [Data Redistribution](data-redistribution) for a detailed explanation of the `DMR_CHECKPOINT_RESTART=0` workflow.
 
 ## Thread safety
 
