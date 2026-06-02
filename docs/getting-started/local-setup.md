@@ -76,6 +76,7 @@ DMR must run inside a **Slurm job allocation** via the `dmr` wrapper. Create a s
 export DMR_DEFAULT_POLICY_MIN=1
 export DMR_DEFAULT_POLICY_MAX=4
 export DMR_PROCS_PER_NODE=1
+export DMR_BLOCKING_REQ=1   # block until expansion resources are granted
 
 # Pass all allocated nodes to PRRTE but start with a single process (-n 1).
 # PRRTE needs to know about all nodes upfront to be able to expand onto them.
