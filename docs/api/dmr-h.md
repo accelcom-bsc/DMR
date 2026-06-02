@@ -168,7 +168,7 @@ DMRStatus dmr_print_analytics_from(DMRAnalytics const *analytics_in);
 DMR_AUTO(the_action, redist_func, restart_func, finalize_func)
 ```
 
-Dispatches to the correct callback based on `the_action`. See [The DMR_AUTO Macro](../user-guide/dmr-auto-macro) for full documentation.
+Dispatches to the correct callback based on `the_action`. See [Reconfiguration Handling](../user-guide/reconfiguration-handling) for full documentation.
 
 ## Analytics event constants
 
