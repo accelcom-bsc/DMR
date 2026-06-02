@@ -73,18 +73,17 @@ DMR must run inside a **Slurm job allocation** via the `dmr` wrapper. Create a s
 #SBATCH --exclusive
 #SBATCH -N 4
 
-export DMR_DEFAULT_POLICY_MIN=1
-export DMR_DEFAULT_POLICY_MAX=4
-export DMR_PROCS_PER_NODE=1
-export DMR_BLOCKING_REQ=1   # block until expansion resources are granted
+export SLURM_ROOT="${SLURM_ROOT:-/usr}"
+export PATH=$SLURM_ROOT/bin:$PATH
+export LD_LIBRARY_PATH=$DMR_PATH/build/lib:$LD_LIBRARY_PATH
 
-# Pass all allocated nodes to PRRTE but start with a single process (-n 1).
-# PRRTE needs to know about all nodes upfront to be able to expand onto them.
+export DMR_PROCS_PER_NODE=1
+
 NODELIST_WITH_COUNTS=$(scontrol show hostnames "$SLURM_JOB_NODELIST" \
   | awk -v n="$DMR_PROCS_PER_NODE" '{print $1 ":" n}' \
   | paste -sd,)
 
-dmr mpirun --host "$NODELIST_WITH_COUNTS" -n 1 ./hello_dmr
+$DMR_PATH/bin/dmr_wrapper mpirun --host $NODELIST_WITH_COUNTS ./hello_dmr
 ```
 
 Submit and watch the output:
