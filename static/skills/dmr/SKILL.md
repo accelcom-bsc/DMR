@@ -19,6 +19,7 @@ Docs: https://iarejula-bsc.github.io/dmr_doc/
 - Full API reference: [references/api.md](references/api.md)
 - Policies — choosing, configuring, combining: [references/policies.md](references/policies.md)
 - Reconfiguration handling and callbacks: [references/reconfiguration-handling.md](references/reconfiguration-handling.md)
+- Advanced usage (pre-existing CR, without DMR_AUTO): [references/advanced-usage.md](references/advanced-usage.md)
 - Common runtime errors: [references/common-issues.md](references/common-issues.md)
 
 ---
@@ -42,9 +43,9 @@ Before any instrumentation, assess whether DMR is the right tool for this applic
 
 ### ✅ DMR is a good fit when
 
-- **The application is MPI-based and iterative** — it has a main loop where all ranks synchronise periodically. DMR needs at least one point per iteration where all ranks can be interrupted safely.
+- **The application is MPI-based and has explicit synchronisation points** — either a main loop where all ranks meet periodically, or a sequential pipeline of distinct stages. Reconfiguration in DMR only happens where the application explicitly calls `DMR_AUTO(dmr_check(...))` — DMR never stops execution at arbitrary points. There must be at least one such call that all ranks reach unconditionally.
 - **There are phases with different resource needs** — e.g. a memory-bound I/O phase that needs few nodes followed by a compute-intensive phase that benefits from many. This is the ideal use case: DMR can shrink for the light phase and expand for the heavy one, releasing resources to the cluster queue in between.
-- **A brief interruption per reconfiguration is tolerable** — the process set change happens between iterations; it is not instantaneous (Slurm must grant resources). If the loop iteration time is very short (< seconds), the reconfiguration overhead may dominate.
+- **A brief pause at each `dmr_check` call is tolerable** — the process set change happens at the explicit `DMR_AUTO` call site and is not instantaneous (Slurm must grant resources). If the gap between consecutive `dmr_check` calls is very short (< seconds), the reconfiguration overhead may dominate.
 - **The application already has checkpoint-restart** — integration is minimal: hook existing save/load into `redist_func`/`restart_func` and add `dmr_check`. This is the best-case scenario.
 
 ### ❌ DMR is a poor fit when
@@ -121,9 +122,23 @@ if (rank < some_threshold) { }  // partial-rank code
 A `dmr_check` must never be placed inside a branch that only some ranks enter. Flag these locations — they are unsafe zones for Phase 4.
 
 ### 1e. Check for existing checkpoint logic
-Does the program already write/read state to/from disk (e.g. HDF5 dumps, restart files, manual `fwrite` checkpoints)?
-- If **yes** → this greatly simplifies Phase 2 and Phase 3. Note which functions save/load state and what they cover.
-- If **no** → Phase 2 will need to define checkpoint functions from scratch.
+
+Ask the developer whether the program already saves/restores state (HDF5 dumps, restart files, `fwrite` checkpoints, framework-level CR). If yes, the integration effort depends heavily on *how* that mechanism works — do not assume it fits `DMR_AUTO` without asking:
+
+**Questions to ask when existing CR is found:**
+
+1. **How is the checkpoint triggered?** Is it a plain callable function (e.g. `save_state()`), or is it wired into a signal handler, `atexit`, `MPI_Finalize`, or the application's own shutdown path?
+2. **Is it a single function or spread across the code?** `DMR_AUTO` expects a single expression for `redist_func` and `restart_func`. If the logic is scattered, it may need to be wrapped first.
+3. **Does the app handle its own process termination after checkpointing?** If the existing CR calls `MPI_Finalize` or `exit()` internally, it will conflict with `DMR_AUTO`'s own rank-exit flow.
+4. **What does restart look like?** Does the program re-enter from `main()` and read a checkpoint file, or does it use a different mechanism (e.g. fork, persistent process, framework restart)?
+
+**Based on the answers:**
+
+- **Clean callable functions, no self-termination** → the existing functions can be used directly as `redist_func` / `restart_func` in `DMR_AUTO`. Integration is minimal.
+- **CR embedded in shutdown or signal handling** → `DMR_AUTO` will likely conflict. Use the manual dispatch pattern instead, or re-package the CR logic into standalone functions. See [references/advanced-usage.md](references/advanced-usage.md).
+- **No existing CR** → Phase 2 will define checkpoint functions from scratch.
+
+Present this assessment to the developer and agree on the approach before proceeding.
 
 ### 1f. Choose a reconfiguration policy
 
