@@ -38,5 +38,5 @@ Expected output:
 
 ## Key points
 
-- `on_expand` just prints the new size, no data to redistribute in this toy example.
-- `on_exit` is a no-op because no heap memory is allocated per-rank.
+- `restart_func` just prints the new size, no data to redistribute in this toy example.
+- `finalize_func` is a no-op because no heap memory is allocated per-rank.

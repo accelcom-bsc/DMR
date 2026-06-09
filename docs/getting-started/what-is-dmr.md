@@ -18,14 +18,16 @@ DMR is developed and maintained by the [Barcelona Supercomputing Center](https:/
 
 ## How it works
 
-Your application calls `dmr_check` at a point in the main loop where a reconfiguration is safe. DMR evaluates the active policy and, if a reconfiguration is warranted, coordinates with Slurm to expand or shrink the job. Before and after the reconfiguration, DMR calls your **expand** and **shrink** callbacks so you can redistribute data across the new process set.
+Your application calls `dmr_check` at a point in the main loop where a reconfiguration is safe. DMR evaluates the active policy and, if a reconfiguration is warranted, coordinates with Slurm to expand or shrink the job. Around a reconfiguration, DMR invokes the data-redistribution callbacks you supply to `DMR_AUTO`. Use `redist_func` to save state before a rank leaves, `restart_func` to restore it when the executable restarts with the new process count, and `finalize_func` to clean up. These callbacks are not tied to the direction of the change; the same ones run whether the job expands or shrinks.
 
 ```c
 while (should_keep_running()) {
-    DMR_AUTO(dmr_check(USE_POLICY), on_expand(), on_shrink(), on_exit());
+    DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, cleanup());
     do_work();
 }
 ```
+
+See [Reconfiguration Handling](../user-guide/reconfiguration-handling) for what each callback does.
 
 ## License
 
