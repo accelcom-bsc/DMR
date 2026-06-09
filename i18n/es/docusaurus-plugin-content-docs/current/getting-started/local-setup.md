@@ -134,5 +134,6 @@ minidmr stop
 ## Siguientes pasos
 
 - [Instalación](installation): prepara DMR en un clúster real
+- [Compilar y ejecutar tu aplicación](building-and-running): compila y lanza tu app según el modo
 - [Estructura de la aplicación](../user-guide/app-structure): entiende el ciclo de vida completo
 - [Resumen de políticas](../user-guide/policies/overview): elige o implementa una política de escalado

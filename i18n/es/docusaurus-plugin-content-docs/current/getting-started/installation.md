@@ -6,28 +6,43 @@ title: Instalación
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-<Tabs groupId="system">
-  <TabItem value="mn5" label="MareNostrum 5">
+Esta página explica cómo **compilar DMR desde el código fuente**.
 
-## MareNostrum 5
-
-La forma más sencilla es cargar el módulo precompilado de DMR y listo, sin necesidad de compilar nada.
+:::tip[En MareNostrum 5 no necesitas esto]
+Un módulo precompilado ya proporciona la biblioteca, los encabezados y todas las dependencias:
 
 ```bash
-module use /apps/GPP/DMR/dmr-modules
 module load dmr
 ```
 
-Ese único módulo proporciona la biblioteca, los encabezados y todas las dependencias (Open MPI, PRRTE y OpenPMIX). Úsalo para ejecuciones de producción.
+Úsalo para ejecuciones normales y sáltate esta página; consulta [Compilar y ejecutar tu aplicación](building-and-running). Sigue los pasos de abajo solo si quieres compilar DMR desde el código fuente (por ejemplo, para modificarlo).
+:::
 
-Si necesitas **compilar DMR tú mismo** en MN5, por ejemplo para modificar el código fuente, consulta [Compilación manual en MareNostrum 5](installation-mn5).
+DMR necesita dos cosas: sus **dependencias** (una compilación concreta de Open MPI con OpenPMIX y PRRTE externos) y **el propio DMR**. Una vez instalados ambos, en [Compilar y ejecutar tu aplicación](building-and-running) se explica cómo compilar y lanzar tu programa.
+
+## 1. Obtener las dependencias
+
+<Tabs groupId="system">
+  <TabItem value="mn5" label="MareNostrum 5">
+
+En lugar de compilar OpenPMIX, PRRTE y Open MPI desde cero, carga los módulos precompilados de MN5:
+
+```bash
+module use /apps/GPP/DMR/dmr-modules
+module load openpmix-for-dmr
+module load prrte-for-dmr
+module load openmpi-for-dmr
+module load dlb-for-dmr   # opcional, solo para la política CE
+```
+
+Esto define automáticamente `OPENPMIX_PREFIX`, `PRRTE_PREFIX`, `OMPI_PREFIX` y `DLB_PREFIX`.
+
+:::note
+Si no puedes usar los módulos precompilados, sigue la pestaña **Otros sistemas** con rutas específicas de MN5, añadiendo la ruta de UCX de MN5 al `./configure` de Open MPI (`--with-ucx=/apps/GPP/UCX/1.16.0/GCC`).
+:::
 
   </TabItem>
   <TabItem value="other" label="Otros sistemas">
-
-## Otros sistemas
-
-### 1. Compilar las dependencias
 
 DMR requiere una compilación concreta de Open MPI con OpenPMIX y PRRTE externos. La versión de Open MPI que trae tu sistema casi con toda seguridad no será compatible.
 
@@ -99,9 +114,7 @@ LD_PRELOAD="$DLB_PREFIX/lib/libdlb_mpi.so"
 export DLB_ARGS="--talp --talp-external-profiler --quiet"
 ```
 
-### 2. Conectar con Slurm
-
-CMake detecta tu instalación de Slurm automáticamente. Si falla:
+**Conectar con Slurm.** CMake detecta tu instalación de Slurm automáticamente. Si falla:
 
 ```bash
 ldd $(which sbatch) | grep libslurm   # encontrar la ruta de la biblioteca
@@ -122,34 +135,36 @@ Renombra `slurm_version.h.in` a `slurm_version.h` y añade antes del `#endif` fi
 #define SLURM_VERSION_NUMBER SLURM_VERSION_NUM(a,b,c)
 ```
 
-### 3. Compilar DMR
+  </TabItem>
+</Tabs>
+
+## 2. Compilar DMR
+
+Con las dependencias listas, la compilación es la misma en cualquier sistema:
 
 ```bash
 git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
 cd dmr
 cmake -B build -DCMAKE_INSTALL_PREFIX=/path/to/install
-cmake --build build
+cmake --build build -j$(nproc)
 cmake --install build
 ```
 
-Consulta [Configuración](../user-guide/configuration) para ver la lista completa de opciones de CMake.
-
-  </TabItem>
-</Tabs>
-
-## Enlazar tu aplicación
-
-```c
-#include "dmr.h"
-```
+Define opciones adicionales según necesites:
 
 ```bash
-mpicc -o my_app my_app.c -ldmr
+cmake -B build \
+  -DCMAKE_INSTALL_PREFIX=/path/to/install \
+  -DDMR_PROCS_PER_NODE=112 \
+  -DDMR_USE_TALP=1
 ```
 
-Con CMake:
+En MN5, usa `-j112` para ajustarte a los núcleos por nodo. Consulta [Configuración](../user-guide/configuration) para ver la lista completa de opciones de CMake.
 
-```cmake
-find_package(DMR REQUIRED)
-target_link_libraries(my_app PRIVATE DMR::dmr)
-```
+:::info[Pendiente de documentar]
+La compilación de Slurm4DMR con un Slurm personalizado en MareNostrum 5 todavía no se cubre aquí. Si necesitas ayuda, escríbenos a [accelcom@bsc.es](mailto:accelcom@bsc.es).
+:::
+
+## Siguiente paso
+
+Con DMR instalado, consulta [Compilar y ejecutar tu aplicación](building-and-running) para compilar tu código contra DMR y lanzarlo.

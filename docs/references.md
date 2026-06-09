@@ -5,7 +5,7 @@ title: References
 
 ## Team
 
-Contact: [accelecom@bsc.es](mailto:accelecom@bsc.es)
+Contact: [accelcom@bsc.es](mailto:accelcom@bsc.es)
 
 ### Core
 
