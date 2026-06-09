@@ -99,9 +99,3 @@ Slurm4DMR is currently only intended to run on **MareNostrum 5**. The full neste
 ### Locally with MiniDMR
 
 To try DMR on your own machine without HPC access, use MiniDMR, which spins up a Docker-based Slurm cluster. See [Local Quick Setup](local-setup).
-
-## Next steps
-
-- [Modes of Operation](modes-of-operation): when to use DMR@Jobs vs Slurm4DMR.
-- [Application Structure](../user-guide/app-structure): the full lifecycle and `DMR_AUTO`.
-- [Configuration](../user-guide/configuration): runtime and build options.
