@@ -3,7 +3,7 @@ sidebar_position: 5
 title: Building and Running
 ---
 
-Once DMR is available on your system, you compile your application against it and launch it through the DMR wrapper. **How you compile and launch depends on the [mode of operation](modes-of-operation)** you target.
+Once DMR is available on your system, you compile your application against it and launch it through the DMR wrapper. **How you compile and launch depends on the [mode of operation](concepts)** you target.
 
 ## Prerequisite: DMR installed
 
@@ -98,4 +98,4 @@ Slurm4DMR is currently only intended to run on **MareNostrum 5**. The full neste
 
 ### Locally with MiniDMR
 
-To try DMR on your own machine without HPC access, use MiniDMR, which spins up a Docker-based Slurm cluster. See [Local Quick Setup](local-setup).
+To try DMR on your own machine without HPC access, use MiniDMR, which spins up a Docker-based Slurm cluster. See [Quick Setup](quickstart).
