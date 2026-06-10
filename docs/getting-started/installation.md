@@ -28,6 +28,7 @@ DMR needs two things: its **dependencies** (a specific build of Open MPI with ex
 Instead of building OpenPMIX, PRRTE, and Open MPI from scratch, load the pre-built MN5 modules:
 
 ```bash
+module load cmake
 module use /apps/GPP/DMR/dmr-modules
 module load openpmix-for-dmr
 module load prrte-for-dmr
@@ -164,10 +165,10 @@ DMR_INSTALL_PATH=$HOME/dmr-install
 First of all, you need the custom Slurm that will run nested to the main Slurm job:
 
 ```bash
-export SLURM_ROOT="$PWD/slurm-install" # Edit to your liking
 cd $DMR_SOURCES_PATH/tools/slurm4dmr
+export SLURM4DMR_ROOT="$PWD/slurm-install" # Edit to your liking
 cd custom-slurm
-./configure --prefix=$SLURM_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
+./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
 make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j10
 make install
 ```
@@ -175,7 +176,7 @@ make install
 Then, DMR:
 
 ```bash
-cd $DMR_SOURCES
+cd $DMR_SOURCES_PATH
 cmake -B build \
   -DCMAKE_INSTALL_PREFIX=$DMR_INSTALL_PATH \
   -DSLURM4DMR=1 \
@@ -202,7 +203,7 @@ cmake -B build \
   -DDMR_USE_TALP=1
 ```
 
-Adjust `-j10` to the number of build jobs you want. See [Configuration](../user-guide/configuration) for the full list of CMake options.
+Adjust `-j10` to the number of build jobs you want and remember to export SLURM4DMR_ROOT with `export SLURM4DMR_ROOT="$DMR_SOURCES_PATH/tools/slurm4dmr/slurm-install` (with your path). See [Configuration](../user-guide/configuration) for the full list of CMake options.
 
 :::info[Not yet documented]
 For help, contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
