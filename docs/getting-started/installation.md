@@ -148,24 +148,25 @@ git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
 cd dmr
 ```
 
-Download also examples and tools with (mandatory for Slurm4DMR but reccomended for the *examples*):
+Download also examples and tools with (mandatory for Slurm4DMR but recommended for the *examples*):
 ```bash
 git submodule update --init --recursive
 ```
 
-Assuming that:
+For instance, assuming that (edit paths to your liking):
 
 ```bash
-DMR_SOURCES_PATH=$HOME/dmr
-DMR_INSTALL_PATH=$HOME/dmr-install
+SOURCES_DMR_PATH=$HOME/dmr
+INSTALL_DMR_PATH=$HOME/dmr-install
 ```
 
-### Slurm4DMR
+<Tabs groupId="mode">
+<TabItem value="slurm4dmr" label="Slurm4DMR">
 
 First of all, you need the custom Slurm that will run nested to the main Slurm job:
 
 ```bash
-cd $DMR_SOURCES_PATH/tools/slurm4dmr
+cd $SOURCES_DMR_PATH/tools/slurm4dmr
 export SLURM4DMR_ROOT="$PWD/slurm-install" # Edit to your liking
 cd custom-slurm
 ./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
@@ -176,20 +177,24 @@ make install
 Then, DMR:
 
 ```bash
-cd $DMR_SOURCES_PATH
+cd $SOURCES_DMR_PATH
 cmake -B build \
-  -DCMAKE_INSTALL_PREFIX=$DMR_INSTALL_PATH \
+  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
   -DSLURM4DMR=1 \
-cmake --build build -j72
+cmake --build build -j10
 cmake --install build
 ```
 
-### DMR@jobs
+Export SLURM4DMR_ROOT with the custom Slurm installation path and when using Slurm4DMR keep it in your environment (i.e., .bashrc).
 
-From where DMR was cloned:
+</TabItem>
+<TabItem value="dmrjobs" label="DMR@jobs">
+
+Compile DMR:
 
 ```bash
-cmake -B build -DCMAKE_INSTALL_PREFIX=$DMR_INSTALL_PATH 
+cd $SOURCES_DMR_PATH
+cmake -B build -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH 
 cmake --build build -j10
 cmake --install build
 ```
@@ -198,17 +203,23 @@ Set additional options as needed:
 
 ```bash
 cmake -B build \
-  -DCMAKE_INSTALL_PREFIX=$DMR_INSTALL_PATH \
+  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
   -DDMR_PROCS_PER_NODE=112 \
   -DDMR_USE_TALP=1
 ```
 
-Adjust `-j10` to the number of build jobs you want and remember to export SLURM4DMR_ROOT with `export SLURM4DMR_ROOT="$DMR_SOURCES_PATH/tools/slurm4dmr/slurm-install` (with your path). See [Configuration](../user-guide/configuration) for the full list of CMake options.
+</TabItem>
+</Tabs>
 
-:::info[Not yet documented]
+Remember to keep exported the installation PATH while using DMR with (i.e., .bashrc):
+```bash
+export DMR_PATH=$INSTALL_DMR_PATH
+```
+
+:::info[More information]
+Adjust `-j10` to the number of build jobs you want. 
+
+See [Configuration](../user-guide/configuration) for the full list of CMake options.
+
 For help, contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
 :::
-
-## Next step
-
-With DMR installed, see [Building and Running Your Application](building-and-running) to compile your code against DMR and launch it.
