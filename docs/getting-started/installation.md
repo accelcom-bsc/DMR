@@ -141,53 +141,26 @@ Rename `slurm_version.h.in` → `slurm_version.h` and add before the final `#end
 
 ## 2. Build DMR
 
-With the dependencies in place, the build is the same on any system, you just need to chose which flavour you want: controlled (Slurm4DMR) or production (DMR@jobs) environment ([see](../getting-started/concepts)).
+With the dependencies in place, the build is the same on any system, you just need to chose which flavour you want: controlled (Slurm4DMR) or production (DMR@jobs) environment (see [modes of operation](../getting-started/concepts#modes-of-operation)).
 
 ```bash
 git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
 cd dmr
 ```
 
-Download also examples and tools with (mandatory for Slurm4DMR but recommended for the *examples*):
+The submodules provide the **custom Slurm** (mandatory for Slurm4DMR) and the **examples** (optional, only if you want them). Download them with:
 ```bash
 git submodule update --init --recursive
 ```
 
-For instance, assuming that (edit paths to your liking):
+Before configuring the compilation, you need to set two environment variables pointing to the sources and to a standard install location (edit paths to your liking):
 
 ```bash
 SOURCES_DMR_PATH=$HOME/dmr
-INSTALL_DMR_PATH=$HOME/dmr-install
+INSTALL_DMR_PATH=$HOME/.local
 ```
 
 <Tabs groupId="mode">
-<TabItem value="slurm4dmr" label="Slurm4DMR">
-
-First of all, you need the custom Slurm that will run nested to the main Slurm job:
-
-```bash
-cd $SOURCES_DMR_PATH/tools/slurm4dmr
-export SLURM4DMR_ROOT="$PWD/slurm-install" # Edit to your liking
-cd custom-slurm
-./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
-make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j10
-make install
-```
-
-Then, DMR:
-
-```bash
-cd $SOURCES_DMR_PATH
-cmake -B build \
-  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
-  -DSLURM4DMR=1 \
-cmake --build build -j10
-cmake --install build
-```
-
-Export SLURM4DMR_ROOT with the custom Slurm installation path and when using Slurm4DMR keep it in your environment (i.e., .bashrc).
-
-</TabItem>
 <TabItem value="dmrjobs" label="DMR@jobs">
 
 Compile DMR:
@@ -199,7 +172,7 @@ cmake --build build -j10
 cmake --install build
 ```
 
-Set additional options as needed:
+Set additional options as needed (see [Configuration](../user-guide/configuration) for the full list of flags):
 
 ```bash
 cmake -B build \
@@ -207,6 +180,33 @@ cmake -B build \
   -DDMR_PROCS_PER_NODE=112 \
   -DDMR_USE_TALP=1
 ```
+
+</TabItem>
+<TabItem value="slurm4dmr" label="Slurm4DMR">
+
+First of all, you need the custom Slurm that will run nested to the main Slurm job:
+
+```bash
+cd $SOURCES_DMR_PATH/tools/slurm4dmr
+export SLURM4DMR_ROOT=$HOME/.local/slurm4dmr # Edit to your liking
+cd custom-slurm
+./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
+make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j10
+make install
+```
+
+Then, DMR (see [Configuration](../user-guide/configuration) for the full list of flags):
+
+```bash
+cd $SOURCES_DMR_PATH
+cmake -B build \
+  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
+  -DSLURM4DMR=1 \
+cmake --build build -j10
+cmake --install build
+```
+
+Export SLURM4DMR_ROOT with the custom Slurm installation path and when using Slurm4DMR keep it in your environment (i.e., .bashrc).
 
 </TabItem>
 </Tabs>
