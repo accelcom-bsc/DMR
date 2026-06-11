@@ -22,13 +22,21 @@ Contact: [accelcom@bsc.es](mailto:accelcom@bsc.es)
 
 ## Acknowledgments
 
-The European PILOT project has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 101034126. The JU receives support from the European Union's Horizon 2020 research and innovation programme and Spain, Italy, Switzerland, Germany, France, Greece, Sweden, Croatia, and Turkey.
+- The European PILOT (EuroHPC-JU grant agreement No 101034126).
+- Barcelona Zettascale Laboratory (Ministerio de transformación digital y servicios públicos - funded by EU)
+- Quantum Enia (Ministerio de transformación digital y servicios públicos - funded by EU)
 
-## Publications
+## Highlighted Publications
+
+When using DMR, please, cite, at least, this work:
+
+- P. Sandås, S. Iserte, G. Houzeaux, and A. J. Peña, "Dynamic Resource Management in Production HPC Clusters." *Pre-print in Arxiv.org*, 2026.
 
 ### Runtimes
 
 - S. Iserte, I. Martín-Álvarez, K. Rojek, J. Aliaga, M. Castillo, W. Folwarska, and A. Peña, "Resource optimization with MPI process malleability for dynamic workloads in HPC clusters." *Future Generation Computer Systems*, Jan. 2026. https://doi.org/10.1016/j.future.2025.107949
+
+- D. Huber, K. Gaddameedi, T. Neckel, H. Bungartz, M. Schulz, P. Dutot, O. Richard, M. Schreiber, S. Iserte, and A. Pena, "Dynamic Resource Management in HPC Systems Using Dynamic Processes with PSets." 2025 IEEE 32nd International Conference on High Performance Computing, Data, and Analytics (HiPC), pp. 279--289, Dec. 2025. https://doi.org/10.1109/HiPC66333.2025.00036
 
 - D. Huber, S. Iserte, M. Schreiber, A. Peña, and M. Schulz, "Bridging the Gap Between Genericity and Programmability of Dynamic Resources in HPC." *ISC High Performance 2025*, Jun. 2025. https://ieeexplore.ieee.org/document/11018304
 
@@ -36,9 +44,11 @@ The European PILOT project has received funding from the European High-Performan
 
 ### Scientific applications
 
-- S. Iserte, G. Houzeaux, P. Sandås, A. Peña, and M. Garcia-Gasulla, "Malleable Computational Fluid Dynamics Simulations." *Parallel CFD 2025*, Nov. 2025.
+- S. Iserte, G. Houzeaux, P. Sandås, A. Peña, and M. Garcia-Gasulla, "Malleable Computational Fluid Dynamics Simulations." *Parallel CFD 2025* (in-press), Nov. 2025.
 
 - S. Iserte and K. Rojek, "A Study of the Effect of Process Malleability in the Energy Efficiency on GPU-based Clusters." *Journal of Supercomputing*, Oct. 2020. https://doi.org/10.1007/s11227-019-03034-x
+
+- S. Iserte, H. Martínez, S. Barrachina, M. Castillo, R. Mayo, and A. Peña, "Dynamic Reconfiguration of Non-iterative Scientific Applications: A Case Study with HPG-aligner." International Journal of High Performance Computing Application(33), pp. 1--10, Aug. 2018. ISSN: 1094-3420. https://doi.org/10.1177/1094342018802347
 
 ### Workloads
 
@@ -50,7 +60,7 @@ The European PILOT project has received funding from the European High-Performan
 
 - J. Aliaga et al., "A Survey on Malleability Solutions for High-Performance Distributed Computing." *Applied Science*, May 2022. https://doi.org/10.3390/app12105231
 
-### DMR v1
+### DMRv1
 
 - S. Iserte, R. Mayo, E. Quintana-Ortí, and A. Peña, "DMRlib: Easy-coding and Efficient Resource Management for Job Malleability." *IEEE Transactions on Computers*, Sep. 2020. https://doi.org/10.1109/TC.2020.3022933
 
@@ -58,4 +68,6 @@ The European PILOT project has received funding from the European High-Performan
 
 ## Derived work
 
-- M. De Rosso, "Empowering the DMR Malleability framework for MPI with the ULFM extension," Oct. 2025. https://www.politesi.polimi.it/handle/10589/243438
+- M. De Rosso, "Empowering the DMR Malleability framework for MPI with the ULFM extension," POLIMI 2025. https://www.politesi.polimi.it/handle/10589/243438
+
+- F. J. Rodríguez-Olmeda: "HPC Paramal Malleability Traceability", UOC 2024. https://openaccess.uoc.edu/handle/10609/151191
