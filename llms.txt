@@ -1,0 +1,30 @@
+# DMR Documentation
+> Dynamic MPI Reconfiguration library by the Barcelona Supercomputing Center.
+
+Source: https://iarejula-bsc.github.io/dmr_doc
+
+## Pages
+
+- [Core API](https://iarejula-bsc.github.io/dmr_doc/api/core-api/)
+- [Policy API](https://iarejula-bsc.github.io/dmr_doc/api/dmr-policies-h/)
+- [Distributed Dataset](https://iarejula-bsc.github.io/dmr_doc/examples/distributed-dataset/)
+- [Hello World](https://iarejula-bsc.github.io/dmr_doc/examples/hello-world/)
+- [Building and Running](https://iarejula-bsc.github.io/dmr_doc/getting-started/building-and-running/)
+- [Concepts](https://iarejula-bsc.github.io/dmr_doc/getting-started/concepts/)
+- [Installation](https://iarejula-bsc.github.io/dmr_doc/getting-started/installation/)
+- [Hands-on Quickstart](https://iarejula-bsc.github.io/dmr_doc/getting-started/quickstart/)
+- [What is DMR?](https://iarejula-bsc.github.io/dmr_doc/getting-started/what-is-dmr/)
+- [References](https://iarejula-bsc.github.io/dmr_doc/references/)
+- [Analytics](https://iarejula-bsc.github.io/dmr_doc/user-guide/analytics/)
+- [Application Structure](https://iarejula-bsc.github.io/dmr_doc/user-guide/app-structure/)
+- [Common Issues](https://iarejula-bsc.github.io/dmr_doc/user-guide/common-issues/)
+- [Configuration](https://iarejula-bsc.github.io/dmr_doc/user-guide/configuration/)
+- [Data Redistribution](https://iarejula-bsc.github.io/dmr_doc/user-guide/data-redistribution/)
+- [MiniDMR Local Cluster](https://iarejula-bsc.github.io/dmr_doc/user-guide/minidmr/)
+- [Manual Reconfiguration Control](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/custom-policies/)
+- [DMR Policies](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/dmr-policies/)
+- [Overview](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/overview/)
+- [Reconfiguration Handling](https://iarejula-bsc.github.io/dmr_doc/user-guide/reconfiguration-handling/)
+
+## Full content
+> For the full content of each page see https://iarejula-bsc.github.io/dmr_doc/llms-full.txt
