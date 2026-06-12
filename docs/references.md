@@ -30,7 +30,8 @@ Contact: [accelcom@bsc.es](mailto:accelcom@bsc.es)
 
 When using DMR, please, cite, at least, this work:
 
-- P. Sandås et al., "Dynamic Resource Management in Production HPC Clusters." *Pre-print in Arxiv.org*, 2026.
+- P. Sandås et al., "Dynamic Resource Management in Production HPC Clusters." *arXiv*, June 2026. https://doi.org/10.48550/arXiv.2606.13266
+
 
 ### Runtimes
 
