@@ -21,7 +21,7 @@ sequenceDiagram
     destroy Old
     Old->>Disk: redist_func() — save state
     Note over New: main() starts
-    Disk->>New: restart_func() — load state
+    New->>Disk: restart_func() — load state
     Note over New: continue...
 ```
 
@@ -40,10 +40,9 @@ sequenceDiagram
     Note over New: main() starts
     par Both alive simultaneously
         Note over Old: redist_func()
+        Note over New: restart_func()
         destroy Old
         Old->>New: send / recv via DMR_INTERCOMM
-    and
-        Note over New: restart_func()
     end
     Note over New: continue...
 ```
