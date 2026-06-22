@@ -14,8 +14,8 @@ const config = {
   },
   themes: ['@docusaurus/theme-mermaid'],
 
-  url: 'https://iarejula-bsc.github.io',
-  baseUrl: process.env.BASE_URL ?? '/dmr_doc/',
+  url: 'https://accelcom-bsc.github.io',
+  baseUrl: process.env.BASE_URL ?? '/DMR/',
   trailingSlash: false,
 
   onBrokenLinks: 'throw',

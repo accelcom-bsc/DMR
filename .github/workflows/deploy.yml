@@ -18,7 +18,7 @@ jobs:
 
       - name: Build and deploy
         env:
-          BASE_URL: /dmr_doc/
+          BASE_URL: /DMR/
         run: |
           nix develop --command bash -c "npm ci && npm run build"
 
