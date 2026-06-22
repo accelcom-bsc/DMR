@@ -1,0 +1,2319 @@
+# DMR Documentation — full content
+> Dynamic MPI Reconfiguration library by the Barcelona Supercomputing Center.
+> Mermaid diagrams are included as their source text so they remain machine-readable.
+
+Source: https://iarejula-bsc.github.io/dmr_doc
+
+---
+
+# Core API
+Source: https://iarejula-bsc.github.io/dmr_doc/api/core-api/
+
+```c
+#include "dmr.h"
+```
+
+## Types
+
+### DMRSuggestion
+
+Passed to `dmr_check` to select the reconfiguration policy.
+
+| Value | Description |
+|-------|-------------|
+| `ROUND_POLICY` | Multiply current node count by stride up to `max_nodes`, then wrap to `min_nodes` |
+| `LIST_POLICY` | Iterate a fixed list of node counts |
+| `CE_POLICY` | Target a communication efficiency value (requires TALP) |
+| `SLURM4DMR_ROUND_POLICY` | `ROUND_POLICY` variant for Slurm4DMR |
+| `SLURM4DMR_CE_POLICY` | `CE_POLICY` variant for Slurm4DMR |
+| `SLURM4DMR_QUEUE_POLICY` | Stay at preferred nodes, respect min/max |
+| `SHOULD_EXPAND` | Expand by `DMR_NODES_IN_EXPAND` nodes |
+| `SHOULD_SHRINK` | Shrink by `DMR_NODES_IN_SHRINK` nodes |
+| `SHOULD_STAY` | Do not reconfigure this iteration |
+
+### DMRAction
+
+Returned by `dmr_init`, `dmr_check`, `dmr_reconfigure`, and `dmr_finalize`.
+
+| Value | Meaning |
+|-------|---------|
+| `DMR_NO_ACTION` | No action required |
+| `DMR_RECONF` | Call `dmr_reconfigure()` |
+| `DMR_RESTART_RECONF` | Load checkpoint/data, then call `dmr_reconfigure()` |
+| `DMR_REDIST_FINALIZE` | Save/send data, then call `dmr_finalize()` (rank exits) |
+| `DMR_FINALIZE` | Call `dmr_finalize()` (rank exits) |
+| `DMR_CLEANUP` | Optional cleanup, rank continues |
+| `DMR_ERROR` | An error occurred |
+
+### DMRStatus
+
+Returned by setter functions and analytics calls.
+
+| Value | Meaning |
+|-------|---------|
+| `DMR_SUCCESS` | Success |
+| `DMR_ERROR_STATUS` | Unspecified failure |
+| `DMR_ERROR_UNINITIALIZED` | Library not yet initialized |
+| `DMR_ERROR_NOT_ROOT` | Must be called from rank 0 |
+| `DMR_ERROR_ARG_NULL` | A required argument was NULL |
+| `DMR_ERROR_BAD_ARGS` | An argument was rejected |
+| `DMR_ERROR_UNSUPPORTED` | Not supported in current state or build |
+| `DMR_ERROR_OUT_OF_MEM` | Out of memory |
+
+### DMRAnalytics
+
+```c
+typedef struct {
+    double      event_time;               // Unix timestamp of event
+    const char *function;                 // DMR function that emitted the event
+    const char *event;                    // Event identifier (DMR_EVENT_* constant)
+    int         world_size;               // MPI processes in current MPI_COMM_WORLD
+    int         node_count;               // Nodes in current MPI_COMM_WORLD
+    double      reconfiguration_time;     // Seconds to complete last reconfiguration (-1 if N/A)
+    double      communication_efficiency; // Last TALP accumulated CE (-1 if N/A)
+    int         pending_nodes;            // Nodes requested but not yet secured
+} DMRAnalytics;
+```
+
+## Global variable
+
+```c
+extern MPI_Comm DMR_INTERCOMM;
+```
+
+Intercommunicator connecting old and new processes during a reconfiguration. Only valid when `dmr_intercomm_available()` returns `1` and `DMR_CHECKPOINT_RESTART=0`.
+
+## Core functions
+
+### dmr_init
+
+```c
+DMRAction dmr_init(int argc, char *argv[]);
+```
+
+Initialize DMR. Call immediately after `MPI_Init`. **Collective.**
+
+Returns `DMR_NO_ACTION` on first launch, `DMR_RESTART_RECONF` when restarting after a reconfiguration.
+
+### dmr_check
+
+```c
+DMRAction dmr_check(DMRSuggestion suggestion);
+```
+
+Evaluate the policy and act on any pending reconfiguration. Call in the main loop. **Collective.**
+
+### dmr_reconfigure
+
+```c
+DMRAction dmr_reconfigure(void);
+```
+
+Perform the reconfiguration. Call only when `dmr_check` returns `DMR_RECONF`. Handled automatically by `DMR_AUTO`.
+
+### dmr_finalize
+
+```c
+DMRAction dmr_finalize(void);
+```
+
+Shut down DMR. Call before `MPI_Finalize`. Not collective; once a rank calls it, no further DMR calls can be made from that rank.
+
+## Policy setters (collective)
+
+```c
+DMRStatus dmr_set_policy_min_nodes(int nodes);
+DMRStatus dmr_set_policy_max_nodes(int nodes);
+DMRStatus dmr_set_policy_stride(int multiplier);
+DMRStatus dmr_set_policy_pref_nodes(int nodes);
+DMRStatus dmr_set_reconf_step_inhibitor(int steps);
+```
+
+## Expand/shrink sizing (rank 0 only)
+
+```c
+DMRStatus dmr_set_nodes_next_expand(int nodes);
+DMRStatus dmr_set_procs_next_expand(int procs);
+DMRStatus dmr_set_ppn_next_expand(int ppn);
+DMRStatus dmr_set_nodes_next_shrink(int nodes);
+DMRStatus dmr_set_procs_next_shrink(int procs);
+DMRStatus dmr_set_jobs_next_shrink(int jobs);
+```
+
+Values reset after each reconfiguration.
+
+## State queries
+
+```c
+int dmr_get_current_node_count(void);
+int dmr_get_reconfig_count(void);
+int dmr_get_active_expansions(void);
+int dmr_pending_expansion(void);
+int dmr_intercomm_available(void);
+int dmr_get_nodes_next_expand(void);
+int dmr_get_procs_next_expand(void);
+int dmr_get_nodes_next_shrink(void);
+int dmr_get_procs_next_shrink(void);
+DMRAction dmr_get_last_action(void);
+```
+
+## Expansion control
+
+```c
+DMRStatus dmr_cancel_expansion(void);
+```
+
+Cancels a pending expansion job. **Collective** — all ranks must call. Only valid when `dmr_pending_expansion()` returns `1`.
+
+## Analytics
+
+```c
+DMRStatus dmr_get_analytics(DMRAnalytics *analytics);
+DMRStatus dmr_create_custom_analytics_event(char const *event, DMRAnalytics **analytics_out);
+DMRStatus dmr_destroy_custom_analytics_event(DMRAnalytics *analytics);
+DMRStatus dmr_print_analytics_from(DMRAnalytics const *analytics_in);
+```
+
+## Macro
+
+### DMR_AUTO
+
+```c
+DMR_AUTO(the_action, redist_func, restart_func, finalize_func)
+```
+
+Dispatches to the correct callback based on `the_action`. See [Reconfiguration Handling](../user-guide/reconfiguration-handling) for full documentation.
+
+## Analytics event constants
+
+| Constant | When emitted |
+|----------|-------------|
+| `DMR_EVENT_NONE` | No event yet |
+| `DMR_EVENT_INIT_COMPLETE` | `dmr_init` completed |
+| `DMR_EVENT_CHECK_CALLED` | `dmr_check` was called |
+| `DMR_EVENT_STAY_CURRENT` | Policy decided to stay |
+| `DMR_EVENT_START_EXPAND_SLURM` | Resources requested from Slurm |
+| `DMR_EVENT_START_EXPAND_MPI` | MPI expansion started |
+| `DMR_EVENT_START_SHRINK` | Shrink triggered |
+| `DMR_EVENT_DATA_REDIST_COMPLETE` | Data redistribution finished |
+| `DMR_EVENT_TALP_CHECK_CE_ACC` | TALP CE check performed |
+| `DMR_EVENT_LAST_FINALIZE` | `dmr_finalize` called outside reconfiguration |
+
+---
+
+# Policy API
+Source: https://iarejula-bsc.github.io/dmr_doc/api/dmr-policies-h/
+
+## Selecting a policy
+
+Pass a `DMRSuggestion` value to `dmr_check`:
+
+```c
+#include "dmr.h"
+
+DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
+```
+
+See [DMRSuggestion](core-api#dmrsuggestion) for all available values.
+
+## Policy bounds (collective)
+
+```c
+DMRStatus dmr_set_policy_min_nodes(int nodes);
+DMRStatus dmr_set_policy_max_nodes(int nodes);
+DMRStatus dmr_set_policy_stride(int multiplier);
+DMRStatus dmr_set_policy_pref_nodes(int nodes);
+DMRStatus dmr_set_reconf_step_inhibitor(int steps);
+```
+
+## Expand/shrink sizing (rank 0 only)
+
+Values apply to the next reconfiguration only and reset afterwards.
+
+```c
+DMRStatus dmr_set_nodes_next_expand(int nodes);
+DMRStatus dmr_set_procs_next_expand(int procs);
+DMRStatus dmr_set_ppn_next_expand(int ppn);
+DMRStatus dmr_set_nodes_next_shrink(int nodes);
+DMRStatus dmr_set_procs_next_shrink(int procs);
+DMRStatus dmr_set_jobs_next_shrink(int jobs);
+```
+
+## Expansion control (collective)
+
+```c
+DMRStatus dmr_cancel_expansion(void);
+```
+
+## State queries
+
+```c
+int dmr_get_current_node_count(void);
+int dmr_get_reconfig_count(void);
+int dmr_get_active_expansions(void);
+int dmr_pending_expansion(void);
+int dmr_get_nodes_next_expand(void);
+int dmr_get_procs_next_expand(void);
+int dmr_get_nodes_next_shrink(void);
+int dmr_get_procs_next_shrink(void);
+```
+
+For usage patterns see [Policies Overview](../user-guide/policies/overview) and [DMR Policies](../user-guide/policies/dmr-policies).
+
+---
+
+# Distributed Dataset
+Source: https://iarejula-bsc.github.io/dmr_doc/examples/distributed-dataset/
+
+Shows how to manage a distributed dataset across dynamic reconfigurations.
+
+Source: `examples/distributed-dataset-sleep/` in the DMR repository.
+
+## What it does
+
+1. Each process owns a contiguous slice of a global integer array.
+2. On expand, data is redistributed to include the new processes.
+3. On shrink, leaving processes send their data to survivors before exiting.
+4. Each iteration sleeps to simulate work.
+
+## Data redistribution
+
+```
+Before expand (2 ranks):   rank 0: [0,1,2,3]   rank 1: [4,5,6,7]
+After expand  (4 ranks):   rank 0: [0,1]   rank 1: [2,3]   rank 2: [4,5]   rank 3: [6,7]
+```
+
+Uses `MPI_Scatterv` (expand) and `MPI_Gatherv` + `MPI_Scatterv` (shrink).
+
+## Running it
+
+```bash
+cd examples/distributed-dataset-sleep
+cmake -B build && cmake --build build
+
+DMR_DEFAULT_POLICY_MIN=1 DMR_DEFAULT_POLICY_MAX=8 DMR_DEFAULT_POLICY_STRIDE=2 \
+dmr mpirun -n 1 ./distributed-dataset-sleep --array-size 64 --iterations 20
+```
+
+## Key points
+
+- `on_exit` **must** send the local slice to a surviving rank before returning; otherwise data is lost.
+- After a reconfiguration, recompute local slice bounds from the new `MPI_Comm_size`.
+
+---
+
+# Hello World
+Source: https://iarejula-bsc.github.io/dmr_doc/examples/hello-world/
+
+A minimal DMR application that prints the current process count after each reconfiguration.
+
+Source: `examples/hello-world/` in the DMR repository.
+
+## What it does
+
+1. Initialises MPI and DMR.
+2. Registers the `round` policy.
+3. Calls `dmr_check` each iteration and prints rank/size.
+4. Exits cleanly after the configured number of iterations.
+
+## Running it
+
+```bash
+cd examples/hello-world
+cmake -B build && cmake --build build
+
+DMR_DEFAULT_POLICY_MIN=2 DMR_DEFAULT_POLICY_MAX=4 \
+dmr mpirun -n 2 ./hello-world
+```
+
+Expected output:
+
+```
+[rank 0 / 2] iteration 0
+[rank 1 / 2] iteration 0
+-- reconfiguration: 2 -> 4 nodes --
+[rank 0 / 4] iteration 1
+[rank 1 / 4] iteration 1
+[rank 2 / 4] iteration 1
+[rank 3 / 4] iteration 1
+```
+
+## Key points
+
+- `restart_func` just prints the new size, no data to redistribute in this toy example.
+- `finalize_func` is a no-op because no heap memory is allocated per-rank.
+
+---
+
+# Building and Running
+Source: https://iarejula-bsc.github.io/dmr_doc/getting-started/building-and-running/
+
+Once DMR is available on your system, you compile your application against it and launch it through the DMR wrapper. **How you compile and launch depends on the [mode of operation](concepts)** you target.
+
+## Prerequisite: DMR installed
+
+- **MareNostrum 5:** `module load dmr` provides the library, headers, and all dependencies.
+- **Other systems:** build DMR from source, see [Installation](installation).
+
+Either way you end up with DMR's `include` and `lib` directories available (referred to below as `$DMR_PATH`).
+
+## Compiling your application
+
+Include the header and link against `libdmr`:
+
+```c
+#include "dmr.h"
+```
+
+```bash
+mpicc -o my_app my_app.c -I$DMR_PATH/include -L$DMR_PATH/lib -ldmr
+```
+
+If the DMR module (or your environment) already exposes the include and library paths, `-ldmr` alone is enough:
+
+```bash
+mpicc -o my_app my_app.c -ldmr
+```
+
+With CMake:
+
+```cmake
+find_package(DMR REQUIRED)
+target_link_libraries(my_app PRIVATE DMR::dmr)
+```
+
+### The mode is fixed when DMR is built
+
+The mode is **baked into the DMR library at build time**, not chosen when you compile your application. A given DMR build targets one backend:
+
+| Mode | How DMR was built |
+| --- | --- |
+| DMR@Jobs (default) | standard build |
+| Slurm4DMR | built with the `SLURM4DMR` CMake option |
+
+Your application links against `libdmr` the same way in both cases, and runs in whichever mode the DMR it links against was built for. So there is no app-side flag: to use Slurm4DMR, link against (or `module load`) a DMR that was compiled with `SLURM4DMR`. See [Installation](installation) and the [`SLURM4DMR` CMake option](../user-guide/configuration#cmake-options).
+
+## Running your application
+
+DMR must run inside a **Slurm job allocation**, launched through the `dmr` wrapper (which wraps `mpirun`). The way you do this differs by mode.
+
+### Configuring DMR at launch
+
+DMR reads environment variables at launch, so you can tune its behaviour from the submit script without recompiling. The most common ones:
+
+```bash
+export DMR_DEBUG_LEVEL=1       # 0 = off, 1 = rank 0 only, 2 = all ranks
+export DMR_PRINT_ANALYTICS=1   # print an analytics line at each reconfiguration
+export DMR_DEFAULT_POLICY_MIN=2
+export DMR_DEFAULT_POLICY_MAX=4
+```
+
+See [Configuration](../user-guide/configuration#runtime-environment-variables) for the full list.
+
+### DMR@Jobs
+
+Submit a normal batch job that invokes the wrapper. DMR requests node additions or removals from the system's Slurm as the application reconfigures.
+
+```bash
+#!/bin/bash
+#SBATCH --time=00:10:00
+#SBATCH --exclusive
+#SBATCH -N 1
+
+export DMR_PROCS_PER_NODE=1
+
+NODELIST_WITH_COUNTS=$(scontrol show hostnames "$SLURM_JOB_NODELIST" \
+  | awk -v n="$DMR_PROCS_PER_NODE" '{print $1 ":" n}' \
+  | paste -sd,)
+
+dmr mpirun --host $NODELIST_WITH_COUNTS ./my_app
+```
+
+```bash
+sbatch submit.sh
+```
+
+### Slurm4DMR
+
+Slurm4DMR runs a **nested Slurm instance** inside a fixed allocation, which reassigns nodes internally as the application reconfigures. Requires a DMR built with `SLURM4DMR`, then a launch script that deploys the nested Slurm and submits your job to it (the wrapper invocation is the same `dmr mpirun` pattern, but it runs against the inner Slurm).
+
+:::note
+Slurm4DMR is currently only intended to run on **MareNostrum 5**. The full nested-deployment setup is not yet documented here; for help contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
+:::
+
+### Locally with MiniDMR
+
+To try DMR on your own machine without HPC access, use MiniDMR, which spins up a Docker-based Slurm cluster. See [Quick Setup](quickstart).
+
+---
+
+# Concepts
+Source: https://iarejula-bsc.github.io/dmr_doc/getting-started/concepts/
+
+This guide helps you evaluate whether DMR fits your application and walks through the key steps to integrate it.
+
+## Is DMR right for your application?
+
+DMR works well when:
+
+- Your application is **MPI-based and iterative**: it has a main loop where all ranks synchronize periodically.
+- Your workload has **phases with different resource needs**: e.g. a compute-heavy phase that benefits from more nodes and a communication-heavy phase that does not.
+- You can tolerate a **brief interruption** at reconfiguration points (the process set changes between iterations).
+
+It is less suitable when:
+
+- Your application has no clear synchronization points (tightly coupled, no loop structure).
+- The cost of saving and restoring state is too high relative to the time saved by scaling.
+
+**If your application already implements checkpoint-restart**, DMR is trivially easy to adopt: hook your existing save/load logic into `redist_func` and `restart_func` and add `dmr_check` at the checkpoint point.
+
+DMR offers two modes of operation, which differ in how they interact with the resource manager.
+
+## Modes of operation
+
+### Production environment with DMR@Jobs
+
+DMR@Jobs connects to your **system's default Slurm instance**. Your application runs as a regular Slurm job and DMR requests node additions or removals through the standard Slurm API.
+
+### Controlled environment with Slurm4DMR
+
+Slurm4DMR runs a **nested Slurm instance** inside a fixed resource allocation managed by the outer resource manager. Your job owns a fixed set of nodes, and Slurm4DMR reassigns them internally as the application expands or shrinks.
+
+:::note
+Slurm4DMR is currently only intended to run on **MareNostrum 5**.
+:::
+
+:::info[Not yet documented]
+When to use Slurm4DMR vs DMR@Jobs is not yet fully documented. For guidance contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
+:::
+
+
+## Finding good reconfiguration points
+
+A reconfiguration point is where DMR will pause, change the process set, and resume. The best candidates are **natural synchronization points** that already exist in your code:
+
+- The boundary between iterations in your main loop.
+- Just before or after a collective operation (`MPI_Barrier`, `MPI_Allreduce`, `MPI_Bcast`, etc.).
+- Between distinct phases of your application (e.g. after a solve step, before a post-processing step).
+
+Avoid points where:
+
+- There are pending non-blocking MPI operations (`MPI_Isend`/`MPI_Irecv` not yet completed).
+- You hold open MPI windows (`MPI_Win`) or active epochs.
+- You are inside a communicator that is not `MPI_COMM_WORLD`.
+
+A single well-chosen point per iteration is enough for most applications.
+
+## Setting up data redistribution
+
+This is the main integration work. You need to answer: *what state must survive a reconfiguration?*
+
+Typical state that needs saving:
+
+- The iteration counter or simulation time step.
+- Distributed arrays or vectors (each rank saves its local partition).
+- Any derived quantities that are expensive to recompute.
+
+**If you already have checkpoint-restart**, map it directly:
+
+```c
+// redist_func: called before this rank exits
+void save(void) {
+    write_checkpoint("checkpoint.bin", my_data, my_iteration);
+}
+
+// restart_func: called when restarting after a reconfiguration
+void load(void) {
+    read_checkpoint("checkpoint.bin", &my_data, &my_iteration);
+}
+```
+
+Then add DMR to your main loop:
+
+```c
+DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), (void)NULL);
+
+while (my_iteration < max_iterations) {
+    DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, (void)NULL);
+    do_work();
+    my_iteration++;
+}
+```
+
+**If you do not have checkpoint-restart**, you need to implement save and load from scratch. The key question is whether saving your state to disk at each potential reconfiguration point is affordable. If it is, proceed. If the state is too large or the I/O cost is too high, consider the [intercommunicator mode](../user-guide/data-redistribution#intercommunicator) instead.
+
+For a full explanation of the lifecycle and the `DMR_AUTO` macro see [Application Structure](../user-guide/app-structure).
+
+## Trade-offs
+
+**Pros**
+
+- Scale up or down during a run without resubmitting the job, keeping your place in the queue.
+- Release idle resources back to the cluster between phases, improving overall cluster utilization.
+- Adapt to workload phases that have different resource requirements at runtime.
+- If your application already implements checkpoint-restart, integration is minimal.
+
+**Cons**
+
+- Reconfigurations add overhead because the application must wait for Slurm to grant the requested resources; the wait depends on cluster queue pressure.
+- You must identify safe reconfiguration points in your main loop.
+- State save and restore logic must be implemented and tested if not already present.
+
+---
+
+# Installation
+Source: https://iarejula-bsc.github.io/dmr_doc/getting-started/installation/
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+This page covers **building DMR from source**.
+
+:::tip[On MareNostrum 5 you do not need this]
+A pre-built module already provides the library, headers, and all dependencies for DMR@jobs:
+
+```bash
+module load dmr
+```
+
+Use that for **production runs** and skip this page; see [Building and Running Your Application](building-and-running). Follow the steps below only if you want to compile DMR from source (e.g., Slurm4DMR, develop new features...).
+:::
+
+DMR needs two things: its **dependencies** (a specific build of Open MPI with external OpenPMIX and PRRTE) and **DMR itself**. Once both are in place, compiling and launching your application is covered in [Building and Running Your Application](building-and-running).
+
+## 1. Get the dependencies
+
+<Tabs groupId="system">
+  <TabItem value="mn5" label="MareNostrum 5">
+
+Instead of building OpenPMIX, PRRTE, and Open MPI from scratch, load the pre-built MN5 modules:
+
+```bash
+module load cmake
+module use /apps/GPP/DMR/dmr-modules
+module load openpmix-for-dmr
+module load prrte-for-dmr
+module load openmpi-for-dmr
+module load dlb-for-dmr   # optional, only for the CE policy
+```
+
+These set `OPENPMIX_PREFIX`, `PRRTE_PREFIX`, `OMPI_PREFIX`, and `DLB_PREFIX` automatically.
+
+:::note
+If you cannot use the pre-built modules, follow the **Other systems** tab using MN5-specific paths, adding the MN5 UCX path to the Open MPI `./configure` (`--with-ucx=/apps/GPP/UCX/1.16.0/GCC`).
+:::
+
+  </TabItem>
+  <TabItem value="other" label="Other systems">
+
+DMR requires a specific build of Open MPI with external OpenPMIX and PRRTE. Your system's default Open MPI is almost certainly incompatible.
+
+:::caution
+Even if you already have Open MPI installed, follow these steps; the required PRRTE features are not present in standard distributions.
+:::
+
+Set your install prefixes:
+
+```bash
+export OPENPMIX_PREFIX=/path/to/openpmix
+export PRRTE_PREFIX=/path/to/prrte
+export OMPI_PREFIX=/path/to/ompi
+```
+
+**OpenPMIX**
+
+```bash
+git clone https://github.com/openpmix/openpmix.git
+cd openpmix && git submodule update --init
+./autogen.pl
+./configure --prefix=$OPENPMIX_PREFIX --disable-debug
+make -j$(nproc) install && cd ..
+export LD_LIBRARY_PATH=$OPENPMIX_PREFIX/lib:$LD_LIBRARY_PATH
+```
+
+**PRRTE**
+
+```bash
+git clone https://github.com/openpmix/prrte.git
+cd prrte && git submodule update --init
+./autogen.pl
+./configure --prefix=$PRRTE_PREFIX --disable-debug \
+  --with-pmix=$OPENPMIX_PREFIX --without-slurm --without-pbs
+make -j$(nproc) install && cd ..
+```
+
+**Open MPI**
+
+```bash
+git clone https://github.com/open-mpi/ompi.git
+cd ompi && git submodule update --init config/oac 3rd-party/pympistandard
+./autogen.pl --no-3rdparty openpmix,prrte
+./configure --prefix=$OMPI_PREFIX --disable-debug \
+  --with-libevent=external --with-hwloc=external \
+  --with-pmix=$OPENPMIX_PREFIX --with-prrte=$PRRTE_PREFIX \
+  --with-ucx        # optional but recommended
+make -j$(nproc) install && cd ..
+export PATH=$OMPI_PREFIX/bin:$PATH
+export LD_LIBRARY_PATH=$OMPI_PREFIX/lib:$LD_LIBRARY_PATH
+```
+
+Add the `export` lines to your `.bashrc`. On some systems:
+
+```bash
+sudo dnf install flex libevent-devel hwloc-devel
+```
+
+**DLB / TALP** (optional, only for the CE policy)
+
+```bash
+export DLB_PREFIX=/path/to/dlb
+wget https://pm.bsc.es/ftp/dlb/releases/dlb-3.5.2.tar.gz
+tar -xvf dlb-3.5.2.tar.gz && cd dlb-3.5.2
+./configure --prefix=$DLB_PREFIX --with-mpi=$OMPI_PREFIX
+make -j$(nproc) install && cd ..
+# Add to .bashrc:
+LD_PRELOAD="$DLB_PREFIX/lib/libdlb_mpi.so"
+export DLB_ARGS="--talp --talp-external-profiler --quiet"
+```
+
+**Connect to Slurm.** CMake detects your Slurm automatically. If it fails:
+
+```bash
+ldd $(which sbatch) | grep libslurm   # find the library path
+export SLURM_LIB=/usr/lib64/slurm     # set it
+```
+
+If Slurm headers are missing, clone the matching Slurm source:
+
+```bash
+sinfo --version   # find your version
+git clone --depth 1 --branch <version> https://github.com/SchedMD/slurm
+export SLURM_INCLUDE=/path/to/slurm/slurm
+```
+
+Rename `slurm_version.h.in` → `slurm_version.h` and add before the final `#endif`:
+
+```c
+#define SLURM_VERSION_NUMBER SLURM_VERSION_NUM(a,b,c)
+```
+
+  </TabItem>
+</Tabs>
+
+## 2. Build DMR
+
+With the dependencies in place, the build is the same on any system, you just need to chose which flavour you want: controlled (Slurm4DMR) or production (DMR@jobs) environment (see [modes of operation](../getting-started/concepts#modes-of-operation)).
+
+```bash
+git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
+cd dmr
+```
+
+The submodules provide the **custom Slurm** (mandatory for Slurm4DMR) and the **examples** (optional, only if you want them). Download them with:
+```bash
+git submodule update --init --recursive
+```
+
+Before configuring the compilation, you need to set two environment variables pointing to the sources and to a standard install location (edit paths to your liking):
+
+```bash
+SOURCES_DMR_PATH=$HOME/dmr
+INSTALL_DMR_PATH=$HOME/.local
+```
+
+<Tabs groupId="mode">
+<TabItem value="dmrjobs" label="DMR@jobs">
+
+Compile DMR:
+
+```bash
+cd $SOURCES_DMR_PATH
+cmake -B build -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH 
+cmake --build build -j10
+cmake --install build
+```
+
+Set additional options as needed (see [Configuration](../user-guide/configuration) for the full list of flags):
+
+```bash
+cmake -B build \
+  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
+  -DDMR_PROCS_PER_NODE=112 \
+  -DDMR_USE_TALP=1
+```
+
+</TabItem>
+<TabItem value="slurm4dmr" label="Slurm4DMR">
+
+First of all, you need the custom Slurm that will run nested to the main Slurm job:
+
+```bash
+cd $SOURCES_DMR_PATH/tools/slurm4dmr
+export SLURM4DMR_ROOT=$HOME/.local/slurm4dmr # Edit to your liking
+cd custom-slurm
+./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
+make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j10
+make install
+```
+
+Then, DMR (see [Configuration](../user-guide/configuration) for the full list of flags):
+
+```bash
+cd $SOURCES_DMR_PATH
+cmake -B build \
+  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
+  -DSLURM4DMR=1 \
+cmake --build build -j10
+cmake --install build
+```
+
+Export SLURM4DMR_ROOT with the custom Slurm installation path and when using Slurm4DMR keep it in your environment (i.e., .bashrc).
+
+</TabItem>
+</Tabs>
+
+Remember to keep exported the installation PATH while using DMR with (i.e., .bashrc):
+```bash
+export DMR_PATH=$INSTALL_DMR_PATH
+```
+
+:::info[More information]
+Adjust `-j10` to the number of build jobs you want. 
+
+See [Configuration](../user-guide/configuration) for the full list of CMake options.
+
+For help, contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
+:::
+
+---
+
+# Hands-on Quickstart
+Source: https://iarejula-bsc.github.io/dmr_doc/getting-started/quickstart/
+
+The fastest way to try DMR locally is with **MiniDMR**, a CLI that spins up a Docker-based multi-node Slurm cluster in seconds, no HPC access required.
+
+## 1. Install MiniDMR
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs groupId="os">
+  <TabItem value="linux" label="Linux / macOS">
+
+```bash
+curl -fsSL https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/raw/master/scripts/install.sh | bash
+```
+
+  </TabItem>
+  <TabItem value="windows" label="Windows (PowerShell)">
+
+```powershell
+irm https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/raw/master/scripts/install.ps1 | iex
+```
+
+The script adds the install directory to the user `PATH` automatically.
+
+  </TabItem>
+</Tabs>
+
+## 2. Start a cluster
+
+```bash
+minidmr start
+```
+
+## 3. Write your first DMR application
+
+Open your favourite text editor and create `hello_dmr.c` anywhere inside your home directory:
+
+```c
+#include <mpi.h>
+#include <stdio.h>
+#include <unistd.h>
+#include "dmr.h"
+
+static void save(void)    { /* save state before leaving processes exit */ }
+static void load(void)    { /* restore state after restart */ }
+static void cleanup(void) { }
+
+int main(int argc, char *argv[])
+{
+    MPI_Init(&argc, &argv);
+
+    /* On checkpoint-restart, main() is called again from scratch.
+       load() is invoked here when restarting after a reconfiguration. */
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), cleanup());
+
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    /* Print current process count so we can see the expansion happening. */
+    if (rank == 0) printf("Running with %d process(es)\n", size);
+
+    /* Each time main() runs we check the current size. If we have fewer than
+       4 processes, request an expansion. DMR will checkpoint, exit, and relaunch
+       the executable with one more node; main() will start again from the top. */
+    if (size < 4) {
+        /* Sleep before requesting the next expansion. Consecutive expands that
+           arrive too quickly can cause overlapping MPI spawn operations to
+           interfere with each other, leading to a launch failure. */
+        sleep(1);
+        DMR_AUTO(dmr_check(SHOULD_EXPAND), save(), (void)NULL, cleanup());
+    }
+
+    /* Reached when size >= 4: all done. */
+    DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
+    MPI_Finalize();
+    return 0;
+}
+```
+
+## 4. Enter the cluster
+
+Navigate to the folder where you saved `hello_dmr.c`, then run:
+
+```bash
+minidmr enter
+```
+
+MiniDMR mounts your host `$HOME` inside the container and drops you into the same directory where you ran `minidmr enter`, so your file is already there. You are now inside a container with Open MPI, Slurm, and DMR preinstalled.
+
+## 5. Compile and run
+
+```bash
+mpicc -o hello_dmr hello_dmr.c -ldmr
+```
+
+DMR must run inside a **Slurm job allocation** via the `dmr` wrapper. Create a submit script `submit.sh`:
+
+```bash
+#!/bin/bash
+#SBATCH --time=00:10:00
+#SBATCH --exclusive
+#SBATCH -N 1
+
+export DMR_PROCS_PER_NODE=1
+
+NODELIST_WITH_COUNTS=$(scontrol show hostnames "$SLURM_JOB_NODELIST" \
+  | awk -v n="$DMR_PROCS_PER_NODE" '{print $1 ":" n}' \
+  | paste -sd,)
+
+dmr mpirun --host $NODELIST_WITH_COUNTS ./hello_dmr
+```
+
+Submit and watch the output:
+
+```bash
+sbatch submit.sh
+tail -f slurm-*.out
+```
+
+You should see `Running with 1 process(es)`, then `Running with 2 process(es)`, and so on until 4.
+
+## 6. Stop the cluster
+
+```bash
+exit          # leave the container
+minidmr stop
+```
+
+## Next steps
+
+- More about [Minidmr](../user-guide/app-structure)
+- [Installation](installation): set up DMR on a real cluster
+- [Building and Running Your Application](building-and-running): compile and launch your app per mode
+- [Application Structure](../user-guide/app-structure): understand the full lifecycle
+- [Policies Overview](../user-guide/policies/overview): choose or implement a scaling policy
+
+---
+
+# What is DMR?
+Source: https://iarejula-bsc.github.io/dmr_doc/getting-started/what-is-dmr/
+
+import Admonition from '@theme/Admonition';
+
+<figure className="text--center">
+  <img
+    src={require('/img/DMR/dmr-logo.png').default}
+    alt="DMR logo"
+    style={{ maxWidth: '760px', width: '100%' }}
+  />
+</figure>
+
+
+# What is DMR?
+
+DMR, short for Dynamic Management of Resources and pronounced "dimmer", is a framework for MPI-based applications that allows running jobs to **change their resource allocation during execution** instead of staying fixed from start to finish. It enables applications to grow and shrink while they run, helping HPC workloads adapt to changing computational needs and system conditions.
+
+<Admonition type="info" title="In one sentence">
+DMR is an MPI malleability framework that helps HPC applications adapt their resources at runtime by coordinating reconfiguration across the application, MPI runtime, and resource manager.
+</Admonition>
+
+
+<figure className="text--center">
+  <img
+    src={require('/img/DMR/dimmer-item.png').default}
+    alt="An electric current dimmer for power control, like DMR dynamically managing resources"
+    style={{ maxWidth: '760px', width: '35%' }}
+  />
+  <figcaption>
+    *An electric current dimmer for power control, like DMR dynamically managing resources.*
+  </figcaption>
+</figure>
+
+DMR is developed and maintained by the [Barcelona Supercomputing Center](https://www.bsc.es/) and it is distributed under the **GNU General Public License, Version 2 (GPLv2)**.
+
+## Why DMR exists
+
+Most production HPC systems still rely on static resource allocation: a job starts with a fixed number of nodes and keeps them until it finishes. This works for predictable workloads, but many real applications change behavior over time, which means a fixed allocation can waste resources or slow execution.
+
+DMR addresses this mismatch by enabling dynamic resource management for MPI applications. Instead of forcing the application to use the same amount of hardware for every phase, DMR allows it to request more resources, release some of them, or continue unchanged depending on what is happening during execution. 
+
+## What DMR enables
+
+With DMR, an application can:
+
+- Expand when additional resources become useful.
+- Shrink when fewer resources are enough.
+- Reconfigure its MPI process layout during runtime.
+- Redistribute data after a resize, either in memory or through checkpoint/restart mechanisms.
+- Coordinate these changes with the MPI runtime and the resource manager instead of handling them manually inside the application.
+
+A simple example is an MPI job that starts small, grows during a communication-efficient phase or the cluster has too many idle resources, and later shrinks again when the workload becomes lighter or the cluster gets saturated. The DMR describes this as a feedback-driven workflow built around initialization, periodic checks, and reconfiguration. 
+
+## Runtime workflow
+
+At a high level, DMR sits between four layers: the scientific application, the MPI runtime and process manager, performance or execution monitors, and the resource management system such as Slurm. Through this position, DMR helps the application query resource availability, request reconfigurations, and adapt its execution footprint dynamically.
+
+<figure className="text--center">
+  <img
+    src={require('/img/DMR/dmr.drawio.png').default}
+    alt="DMR design and working modes"
+    style={{ maxWidth: '760px', width: '50%' }}
+  />
+  <figcaption>
+    *DMR design and working modes.*
+  </figcaption>
+</figure>
+
+The application periodically asks DMR whether a reconfiguration should happen. If the answer is yes, DMR coordinates the required changes across the software stack and then resumes execution with the updated process and resource layout.
+
+## Core API idea
+
+In practice, DMR is commonly presented through four core operations: `dmr_init` initializes the dynamic environment, `dmr_check` evaluates whether a reconfiguration should occur, `dmr_reconfigure` performs the transition, and `dmr_finalize` releases internal state and shuts the framework down cleanly.
+
+<figure className="text--center">
+```mermaid
+flowchart LR
+    subgraph Loop[Application control loop]
+      I[dmr_init] --> C1[dmr_check]
+      C1 -->|No change| W[Continue execution]
+      C1 -->|Resize requested| R[dmr_reconfigure]
+      R --> X[Data redistribution]
+      X --> W
+      W --> C1 --> Z[dmr_finalize]
+    end
+```
+</figure>
+
+<Admonition type="tip" title="Mental model">
+Think of DMR as a control layer for MPI malleability: the application decides where adaptation is safe, and DMR coordinates how that adaptation happens across jobs, processes, data, and resources.
+</Admonition>
+
+## Why it matters in production HPC
+
+Dynamic resource management has been studied for years, but many approaches depend on custom scheduler modifications or controlled testbed environments. DMR is designed to support production-oriented HPC settings and unmodified Slurm deployments, which lowers the barrier to adopting MPI malleability on real systems.
+
+This matters because production clusters are shared, busy, and heterogeneous. In that setting, DMR can help applications use resources more efficiently, reduce wasted node-hours, and adapt to runtime conditions without requiring users or administrators to redesign the entire platform.
+
+## Who should read this
+
+This page is for:
+
+- HPC developers working with MPI applications. 
+- Researchers exploring malleability and dynamic resource management.
+- Teams that want to move from fixed-size batch execution toward adaptive execution models.
+- Application developers who need a practical path from controlled experiments to production deployments.
+
+It is especially relevant when an application has phases with different computational intensity, communication behavior, or hardware needs.
+
+## Where to go next
+
+- Continue to the [installation guide](../getting-started/installation) to set up DMR in your environment.
+- Open the [example codes](../examples/hello-world) to see how DMR is used.
+- Read the [user guide](../user-guide/app-structure) to understand application structure and data redistribution.
+- Use the [API reference](../api/core-api) when integrating DMR into your own code.
+
+---
+
+# References
+Source: https://iarejula-bsc.github.io/dmr_doc/references/
+
+## Team
+
+Contact: [accelcom@bsc.es](mailto:accelcom@bsc.es)
+
+### Core
+
+- Sergio Iserte (BSC)
+- Petter Sandås (BSC)
+- Íñigo Aréjula-Aísa (BSC)
+- Antonio J. Peña (BSC)
+
+### Former members
+
+- Vicenç Beltran (BSC)
+- Rafael Mayo (UJI)
+- Enrique S. Quintana-Ortí (UPV)
+
+## Acknowledgments
+
+- The European PILOT (EuroHPC-JU grant agreement No 101034126).
+- Barcelona Zettascale Laboratory (Ministerio de transformación digital y servicios públicos - funded by EU)
+- Quantum Enia (Ministerio de transformación digital y servicios públicos - funded by EU)
+
+## Highlighted Publications
+
+When using DMR, please, cite, at least, this work:
+
+- P. Sandås et al., "Dynamic Resource Management in Production HPC Clusters." *arXiv*, June 2026. https://doi.org/10.48550/arXiv.2606.13266
+
+
+### Runtimes
+
+- S. Iserte et al., "Resource optimization with MPI process malleability for dynamic workloads in HPC clusters." *Future Generation Computer Systems*, Jan. 2026. https://doi.org/10.1016/j.future.2025.107949
+
+- D. Huber et al., "Dynamic Resource Management in HPC Systems Using Dynamic Processes with PSets." 2025 IEEE 32nd International Conference on High Performance Computing, Data, and Analytics (HiPC), pp. 279--289, Dec. 2025. https://doi.org/10.1109/HiPC66333.2025.00036
+
+- D. Huber et al., "Bridging the Gap Between Genericity and Programmability of Dynamic Resources in HPC." *ISC High Performance 2025*, Jun. 2025. https://ieeexplore.ieee.org/document/11018304
+
+- S. Iserte et al., "Towards the Democratization and Standardization of Dynamic Resources with MPI Spawning." **Main Track Best Paper Award** *PPAM 2024*, Sep. 2024. https://doi.org/10.1007/978-3-031-85697-6_19
+
+### Scientific applications
+
+- S. Iserte et al., "Malleable Computational Fluid Dynamics Simulations." *Parallel CFD 2025* (in-press), Nov. 2025.
+
+- S. Iserte and K. Rojek, "A Study of the Effect of Process Malleability in the Energy Efficiency on GPU-based Clusters." *Journal of Supercomputing*, Oct. 2020. https://doi.org/10.1007/s11227-019-03034-x
+
+- S. Iserte et al., "Dynamic Reconfiguration of Non-iterative Scientific Applications: A Case Study with HPG-aligner." International Journal of High Performance Computing Application(33), pp. 1--10, Aug. 2018. ISSN: 1094-3420. https://doi.org/10.1177/1094342018802347
+
+### Workloads
+
+- S. Iserte et al., "MPI Malleability Validation under Replayed Real-World HPC Conditions." *Future Generation Computer Systems*, Dec. 2025. https://doi.org/10.1016/j.future.2025.108305
+
+### State of the art
+
+- A. Tarraf et al., "Malleability in Modern HPC Systems: Current Experiences, Challenges, and Future Opportunities." *IEEE TPDS*, Jun. 2024. https://doi.org/10.1109/TPDS.2024.3406764
+
+- J. Aliaga et al., "A Survey on Malleability Solutions for High-Performance Distributed Computing." *Applied Science*, May 2022. https://doi.org/10.3390/app12105231
+
+### DMRv1
+
+- S. Iserte et al., "DMRlib: Easy-coding and Efficient Resource Management for Job Malleability." *IEEE Transactions on Computers*, Sep. 2020. https://doi.org/10.1109/TC.2020.3022933
+
+- S. Iserte et al., "DMR API: Improving Cluster Productivity by Turning Applications into Malleable." *Parallel Computing*, Jul. 2018. https://doi.org/10.1016/j.parco.2018.07.006
+
+- S. Iserte, "High-throughput Computation through Efficient Resource Management" UJI 2028. https://doi.org/http://dx.doi.org/10.6035/14101.2018.176272
+
+## Derived work
+
+- M. De Rosso, "Empowering the DMR Malleability framework for MPI with the ULFM extension", POLIMI 2025. https://www.politesi.polimi.it/handle/10589/243438
+
+- F. J. Rodríguez-Olmeda, "HPC Paramal Malleability Traceability", UOC 2024. https://openaccess.uoc.edu/handle/10609/151191
+
+---
+
+# Analytics
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/analytics/
+
+DMR can log structured analytics lines at each reconfiguration event. These logs can be visualized with the Jupyter notebook provided in `viz/`.
+
+## Enabling analytics
+
+Set before launching your application:
+
+```bash
+export DMR_PRINT_ANALYTICS=1
+dmr mpirun ...
+```
+
+Or enable it permanently at compile time:
+
+```bash
+cmake -B build -DDMR_PRINT_ANALYTICS=1
+```
+
+## Log format
+
+Each analytics line has the following CSV format:
+
+```
+[DMR ANALYTICS],<timestamp>,<function>,<event>,<world_size>,<node_count>,<reconfig_time>,<ce>,<pending_nodes>
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timestamp` | float | Unix timestamp when the event was recorded |
+| `function` | string | DMR function that emitted the event |
+| `event` | string | Event identifier (see below) |
+| `world_size` | int | Number of MPI processes in `MPI_COMM_WORLD` |
+| `node_count` | int | Number of nodes in `MPI_COMM_WORLD` |
+| `reconfig_time` | float | Seconds to complete the last reconfiguration, or `-1` if not applicable |
+| `ce` | float | Last TALP accumulated communication efficiency, or `-1` if not available |
+| `pending_nodes` | int | Nodes requested from Slurm but not yet allocated |
+
+Example line:
+
+```
+[DMR ANALYTICS],1748000123.45,dmr_check,DMR_EVENT_CHECK_CALLED,8,8,-1.00,-1.000000,0
+```
+
+## Events
+
+| Event | When emitted |
+|-------|-------------|
+| `DMR_EVENT_NONE` | No event yet |
+| `DMR_EVENT_INIT_COMPLETE` | `dmr_init` completed |
+| `DMR_EVENT_CHECK_CALLED` | `dmr_check` was called |
+| `DMR_EVENT_STAY_CURRENT` | Policy decided to stay at current size |
+| `DMR_EVENT_START_EXPAND_SLURM` | Resources requested from Slurm |
+| `DMR_EVENT_START_EXPAND_MPI` | MPI expansion process started |
+| `DMR_EVENT_START_SHRINK` | Shrink triggered |
+| `DMR_EVENT_DATA_REDIST_COMPLETE` | Data redistribution finished |
+| `DMR_EVENT_TALP_CHECK_CE_ACC` | TALP communication efficiency check performed |
+| `DMR_EVENT_LAST_FINALIZE` | `dmr_finalize` called outside a reconfiguration |
+
+## Custom analytics events
+
+You can emit your own analytics lines at any point using `dmr_create_custom_analytics_event`. This creates a snapshot of the current DMR runtime state tagged with your event string, which is then printed in the same format as built-in events and can be read by the notebook.
+
+```c
+DMRAnalytics *event;
+
+// Create a snapshot tagged with your event name
+dmr_create_custom_analytics_event("MY_APP_PHASE_START", &event);
+
+// Print it (only emits a line if DMR_PRINT_ANALYTICS=1)
+dmr_print_analytics_from(event);
+
+// Free when done
+dmr_destroy_custom_analytics_event(event);
+```
+
+The event string must not collide with the built-in `DMR_EVENT_*` constants.
+
+## Visualizing with the Jupyter notebook
+
+The notebook `viz/dmr_analytics_visualizer.ipynb` reads analytics logs and produces graphs. It filters `[DMR ANALYTICS]` lines automatically so you can feed it raw application output without preprocessing.
+
+### Available graphs
+
+| Graph | Requires |
+|-------|----------|
+| Node/Process count over time | `DMR_PRINT_ANALYTICS=1` |
+| Node/Process count over iteration | `DMR_PRINT_ANALYTICS=1`, iterative app with `dmr_check` per iteration |
+| Node count + pending nodes over time or iteration | `DMR_PRINT_ANALYTICS=1` |
+| Node count + communication efficiency over time or iteration | `DMR_PRINT_ANALYTICS=1` + `DMR_USE_TALP=1` |
+
+### Setup: with Nix (recommended)
+
+The `viz/` folder has a `flake.nix` with all Python dependencies (pandas, matplotlib, numpy, Jupyter).
+
+**One-shot launch:**
+
+```bash
+cd viz/
+nix run
+```
+
+Opens Jupyter Notebook at `http://127.0.0.1:8888` automatically.
+
+**Dev shell (for more control):**
+
+```bash
+cd viz/
+nix develop
+jupyter notebook --ip=127.0.0.1
+# or: jupyter lab --ip=127.0.0.1
+```
+
+:::caution
+Use `--ip=127.0.0.1` explicitly. The default `localhost` may fail to open in some browsers.
+:::
+
+### Setup: manual
+
+Install the dependencies with pip:
+
+```bash
+pip install jupyter notebook pandas matplotlib numpy
+```
+
+Then launch:
+
+```bash
+cd viz/
+jupyter notebook --ip=127.0.0.1
+```
+
+### Usage
+
+1. Place your log file in the `viz/` folder (or provide its absolute path).
+2. Open `dmr_analytics_visualizer.ipynb`.
+3. Edit the first cell to point to your log file:
+
+```python
+dmr_log_files = [ "my_run.out" ]
+```
+
+4. Run all cells. The notebook supports multiple log files for comparison.
+
+---
+
+# Application Structure
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/app-structure/
+
+A DMR application is built around three lifecycle functions and a main loop. The central concept is that DMR returns a `DMRAction` value telling you what to do next, and `DMR_AUTO` handles the dispatch automatically.
+
+## How reconfigurations work
+
+This is the most important thing to understand before writing a DMR application.
+
+When a reconfiguration happens, the current processes exit and the **wrapper relaunches the executable from the beginning** with the new process count. This means `main()` is called again from scratch, all local variables are reset.
+
+If your application has a loop that tracks progress with a local variable, that variable will always be zero on restart:
+
+```c
+// WRONG: infinite loop
+int main(int argc, char *argv[]) {
+
+    // <-- after every reconfiguration, execution restarts here
+    MPI_Init(&argc, &argv);
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, (void)NULL, (void)NULL);
+
+    for (int i = 0; i < 10; i++) {  // i is always 0 on restart
+        DMR_AUTO(dmr_check(SHOULD_EXPAND), save(), (void)NULL, (void)NULL);
+        do_work(i);
+    }
+    // never reached
+}
+```
+
+You must **persist any state that needs to survive a reconfiguration** to disk, and restore it in `restart_func`:
+
+```c
+// CORRECT: save i before leaving, restore it on restart
+typedef struct { int i; } AppState;
+
+void save_state(void) {
+    AppState s = { .i = current_i };
+    FILE *f = fopen("checkpoint.bin", "wb");
+    fwrite(&s, sizeof(s), 1, f);
+    fclose(f);
+}
+
+void load_state(void) {
+    AppState s;
+    FILE *f = fopen("checkpoint.bin", "rb");
+    fread(&s, sizeof(s), 1, f);
+    fclose(f);
+    current_i = s.i;
+}
+
+int current_i = 0;
+
+int main(int argc, char *argv[]) {
+    MPI_Init(&argc, &argv);
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_state(), (void)NULL);
+
+    while (current_i < 10) {
+        DMR_AUTO(dmr_check(SHOULD_EXPAND), save_state(), (void)NULL, (void)NULL);
+        do_work(current_i);
+        current_i++;
+    }
+    ...
+}
+```
+
+The loop condition uses `current_i` (a global that survives via checkpoint), not a local `i`. After restart, `load_state()` restores it to where the previous run left off.
+
+## Lifecycle overview
+
+```mermaid
+flowchart TD
+    classDef dmr  fill:#6366f1,stroke:#4338ca,color:#fff
+    classDef user fill:#059669,stroke:#047857,color:#fff
+    classDef mpi  fill:#374151,stroke:#1f2937,color:#fff
+
+    A([MPI_Init]):::mpi --> B["dmr_init()"]:::dmr
+    B -->|DMR_RESTART_RECONF| C["restart_func()\nrestore saved state"]:::user
+    B -->|DMR_NO_ACTION| D
+    C --> D(["main loop"])
+    D --> E["dmr_check(policy)"]:::dmr
+    E -->|DMR_NO_ACTION| D
+    E -->|DMR_RECONF| F["dmr_reconfigure()"]:::dmr
+    F -->|DMR_NO_ACTION| D
+    F -->|DMR_REDIST_FINALIZE| G["redist_func() + finalize_func()\nsave state · rank exits"]:::user
+    D --> H["dmr_finalize()"]:::dmr
+    H --> I([MPI_Finalize]):::mpi
+```
+
+- **Purple**: DMR library calls
+- **Green**: callbacks you implement
+- **Dark**: MPI
+
+## Typical main loop
+
+```c
+#include <mpi.h>
+#include "dmr.h"
+
+static void save_checkpoint(void)  { /* persist state on disk */ }
+static void load_checkpoint(void)  { /* read data written by previous configuration */ }
+static void cleanup(void)          { /* free resources */ }
+
+int main(int argc, char *argv[])
+{
+    MPI_Init(&argc, &argv);
+
+    /* dmr_init may return DMR_RESTART_RECONF if this process was spawned
+       as part of an expansion; load_checkpoint() handles that case. */
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_checkpoint(), cleanup());
+
+    dmr_set_policy_min_nodes(2);
+    dmr_set_policy_max_nodes(8);
+
+    while (should_keep_running()) {
+        DMR_AUTO(dmr_check(ROUND_POLICY), save_checkpoint(), (void)NULL, cleanup());
+        do_work();
+    }
+
+    DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
+    MPI_Finalize();
+    return 0;
+}
+```
+
+## dmr_init
+
+Call `dmr_init` immediately after `MPI_Init`. **Collective.**
+
+Returns `DMR_NO_ACTION` on first launch, or `DMR_RESTART_RECONF` when the executable has been restarted after a reconfiguration (see [How reconfigurations work](#how-reconfigurations-work) above). `DMR_AUTO` invokes `restart_func` in the second case.
+
+## dmr_check
+
+Call `dmr_check` inside the main loop with a `DMRSuggestion`. **Collective.**
+
+When DMR decides to reconfigure it returns `DMR_RECONF`. `DMR_AUTO` then calls `dmr_reconfigure()` internally, which handles the MPI communicator setup. The leaving processes receive `DMR_REDIST_FINALIZE` from `dmr_reconfigure()` ; `DMR_AUTO` calls `redist_func` and `finalize_func` on them and terminates those ranks.
+
+## dmr_reconfigure
+
+Called automatically by `DMR_AUTO` when `DMR_RECONF` is returned. Do not call it manually unless you handle `DMRAction` values yourself.
+
+## dmr_finalize
+
+Call `dmr_finalize` before `MPI_Finalize`. It is not collective, but once a rank calls it no further DMR calls can be made from that rank.
+
+## Communicator and checkpoint-restart
+
+DMR supports two redistribution strategies, selected at compile time:
+
+| Strategy | `DMR_CHECKPOINT_RESTART` | How it works |
+|----------|--------------------------|--------------|
+| **Checkpoint-restart** (default) | `1` | Old processes save state to disk and exit; new processes start from the beginning of the executable and restore state via `restart_func` |
+| **Intercommunicator** | `0` | Old and new processes are alive simultaneously; they exchange data directly via `DMR_INTERCOMM`, then the old ones exit. New processes also start from the beginning of the executable. |
+
+See [Data Redistribution](data-redistribution) for a detailed explanation of the `DMR_CHECKPOINT_RESTART=0` workflow.
+
+## Who owns `MPI_Init` and `MPI_Finalize`
+
+The skeletons above have the application call `MPI_Init` and `MPI_Finalize` directly. In real codes another library (e.g. a simulator or solver) often initializes and finalizes MPI itself. Two rules keep this working with DMR:
+
+- **`MPI_Init` must run before `dmr_init`.** DMR uses MPI from `dmr_init` onward (`dmr_init` calls `MPI_Comm_get_parent` to detect a spawned process). Whoever owns MPI must initialize it first. If a library initializes MPI, call its init *before* `dmr_init`; do not call `MPI_Init` twice.
+- **On a reconfiguration, DMR finalizes MPI for you on the leaving ranks.** When `dmr_finalize()` runs as part of a reconfiguration it calls `MPI_Finalize()` and then `exit()` — the executable is being torn down so a fresh world can take over. Your post-loop `MPI_Finalize()` is reached **only** on a normal, non-reconfiguring exit.
+
+The practical hazard is a **double `MPI_Finalize`**: if a library's teardown calls `MPI_Finalize` and you run that teardown in `finalize_func` (or after the loop) on a leaving rank, it collides with the `MPI_Finalize` inside `dmr_finalize()`. On leaving ranks, release the library's MPI-bound state without finalizing MPI, and let `dmr_finalize()` own the actual `MPI_Finalize`. See the warning in [Reconfiguration Handling](reconfiguration-handling#finalize_func-clean-up-resources).
+
+## Thread safety
+
+DMR is **not thread-safe**. Do not call any DMR function from multiple threads concurrently.
+
+---
+
+# Common Issues
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/common-issues/
+
+## Overlapping expands cause MPI launch failure
+
+**Symptom:** consecutive expansions fail with an MPI spawn or PRRTE launch error.
+
+**Cause:** if `dmr_check(SHOULD_EXPAND)` is called again before the previous expansion has fully settled, the two MPI spawn operations can interfere with each other.
+
+**Fix:** add a short `sleep` before each `dmr_check` call to let the previous expand complete:
+
+```c
+sleep(2);
+DMR_AUTO(dmr_check(SHOULD_EXPAND), save(), (void)NULL, cleanup());
+```
+
+---
+
+## Did you launch with the DMR wrapper?
+
+**Symptom:**
+```
+DMR Error: Could not detect DMR state. Did you launch with the DMR wrapper?
+```
+
+**Cause:** the application was launched with `mpirun` directly instead of through `dmr`.
+
+**Fix:** always launch with the wrapper:
+```bash
+dmr mpirun --host $NODELIST_WITH_COUNTS ./my_app
+```
+
+---
+
+## Issue fetching Slurm job ID info from environment
+
+**Symptom:**
+```
+DMR Error: Issue fetching Slurm job ID info from environment.
+```
+
+**Cause:** the application was run outside of a Slurm job allocation (e.g. directly from the shell). DMR requires `SLURM_JOB_ID` to be set, which only happens inside a job.
+
+**Fix:** submit via `sbatch` or run inside `salloc`.
+
+---
+
+## cgroup.conf parse errors in slurm output
+
+**Symptom:**
+```
+slurmstepd: error: Parse error in file /etc/slurm/cgroup.conf line 1: "CgroupPlugin=cgroup/v1"
+slurmstepd: fatal: Could not open/read/parse cgroup.conf file
+```
+
+**Cause:** known configuration noise in the MiniDMR Docker image. These errors come from Slurm's cgroup plugin, not from DMR.
+
+**Fix:** safe to ignore. They do not affect DMR behaviour.
+
+---
+
+# Configuration
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/configuration/
+
+DMR can be configured at compile time (CMake), at launch time (environment variables), and at runtime (setter functions). Environment variables override CMake defaults; runtime setters override environment variables.
+
+## CMake options
+
+```bash
+cmake -B build \
+  -DCMAKE_INSTALL_PREFIX=/path/to/install \
+  -DDMR_PROCS_PER_NODE=112 \
+  -DDMR_USE_TALP=1 \
+  -DDLB_ROOT=$DLB_PREFIX
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `CMAKE_INSTALL_PREFIX` | system default | Installation directory for headers and `libdmr` |
+| `SLURM4DMR` | `0` | Build for the Slurm4DMR backend (nested Slurm) instead of DMR@Jobs. Requires `SLURM4DMR_ROOT` (or `SLURM4DMR_LIB_DIR`/`SLURM4DMR_BIN_DIR`/`SLURM4DMR_INCLUDE_DIR`) |
+| `DMR_PROCS_PER_NODE` | `1` | Processes spawned per node added in an expand |
+| `DMR_USE_TALP` | `0` | Compile with DLB/TALP (enables CE policies) |
+| `DMR_CHECKPOINT_RESTART` | `1` | Use checkpoint-restart for reconfigurations. Set to `0` to use the intercommunicator (`DMR_INTERCOMM`) instead |
+| `DMR_JOBS_CAN_SHRINK` | `1` | Enable Slurm job shrinking |
+| `DMR_JOBS_CAN_GROW` | `0` | Enable Slurm job growing (requires `DMR_JOBS_CAN_SHRINK=1`) |
+| `DMR_BLOCKING_REQ` | `0` | Block in `dmr_check` until resources are acquired. Useful with Slurm4DMR |
+| `DMR_NODES_IN_EXPAND` | `1` | Default nodes to add per expand step |
+| `DMR_NODES_IN_SHRINK` | `1` | Default nodes to remove per shrink step |
+| `DMR_SKIP_SSH_CHECK` | `0` | Skip SSH health check on new nodes before expanding |
+| `DMR_SSH_CHECK_TIMEOUT` | `20` | Seconds to wait for SSH health check before continuing |
+
+## Runtime environment variables
+
+### Debug and analytics
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DMR_DEBUG_LEVEL` | `0` | `0` = off, `1` = rank 0 only, `2` = all ranks |
+| `DMR_PRINT_ANALYTICS` | `0` | Print analytics line at each reconfiguration when `1` |
+
+### Expand/shrink sizing
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DMR_NODES_IN_EXPAND` | `1` | Default nodes per expand |
+| `DMR_NODES_IN_SHRINK` | `1` | Default nodes per shrink |
+| `DMR_PROCS_PER_NODE` | *(from CMake)* | Processes per node in an expand |
+
+### Policy
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum node count |
+| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum node count |
+| `DMR_DEFAULT_POLICY_STRIDE` | `2` | Multiplier for `ROUND_POLICY` |
+| `DMR_DEFAULT_POLICY_PREF` | `1` | Preferred nodes for `SLURM4DMR_QUEUE_POLICY` |
+| `DMR_DEFAULT_INHIBITOR` | `0` | Skip N calls to `dmr_check` out of every N+1 |
+| `DMR_TALP_TARGET_CE` | `0.8` | Target communication efficiency for CE policies |
+| `DMR_TALP_SENSITIVITY` | `15` | Adjustment sensitivity for CE policies |
+
+## Runtime setter functions
+
+All setters are **collective** (all ranks must call):
+
+```c
+dmr_set_policy_min_nodes(2);
+dmr_set_policy_max_nodes(16);
+dmr_set_policy_stride(2);
+dmr_set_policy_pref_nodes(8);
+dmr_set_reconf_step_inhibitor(4);
+```
+
+Expand/shrink sizing (rank 0 only, reset after each reconfiguration):
+
+```c
+dmr_set_nodes_next_expand(4);
+dmr_set_ppn_next_expand(8);
+dmr_set_procs_next_expand(32);
+dmr_set_nodes_next_shrink(2);
+dmr_set_procs_next_shrink(16);
+```
+
+---
+
+# Data Redistribution
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/data-redistribution/
+
+When a reconfiguration happens, all processes exit and the executable restarts from scratch with the new process count. Before exiting, the old processes must transfer their state to the new ones so the application can resume correctly.
+
+DMR supports two ways to do this, selected at compile time with `DMR_CHECKPOINT_RESTART`.
+
+## Checkpoint-restart (default)
+
+`DMR_CHECKPOINT_RESTART=1`
+
+Old processes write their state to disk (`redist_func`), then exit. New processes start from the beginning of the executable and read that state back (`restart_func`).
+
+```mermaid
+sequenceDiagram
+    participant Old as Old processes
+    participant Disk
+    participant New as New processes
+    destroy Old
+    Old->>Disk: redist_func() — save state
+    Note over New: main() starts
+    New->>Disk: restart_func() — load state
+    Note over New: continue...
+```
+
+Use this mode when you already have checkpoint logic in your application, or when your system does not support the custom PRRTE version required for intercommunicator mode.
+
+## Intercommunicator
+
+`DMR_CHECKPOINT_RESTART=0`
+
+Old and new processes are **alive at the same time** for a short window. DMR exposes `DMR_INTERCOMM`, an MPI intercommunicator connecting both sets of processes so they can exchange data directly. Once the transfer is done, the old processes exit. New processes also start from the beginning of the executable.
+
+```mermaid
+sequenceDiagram
+    participant Old as Old processes
+    participant New as New processes
+    Note over New: main() starts
+    par Both alive simultaneously
+        Note over Old: redist_func()
+        Note over New: restart_func()
+        destroy Old
+        Old->>New: send / recv via DMR_INTERCOMM
+    end
+    Note over New: continue...
+```
+
+Use `dmr_intercomm_available()` to check whether `DMR_INTERCOMM` is currently valid before using it.
+
+:::note[The whole world is replaced, no surviving ranks]
+A reconfiguration is an **MPI spawn of a brand-new world** (`MPI_Comm_spawn_multiple`) plus a relaunch of the executable from `main()`; every process of the old world then exits. This holds on both a shrink and an expand, so **no rank keeps data across the boundary** — every new process must obtain everything it needs over `DMR_INTERCOMM`. There is no "surviving rank that already holds part of the array."
+:::
+
+### The two worlds and `DMR_INTERCOMM`
+
+`DMR_INTERCOMM` connects the two worlds as the local/remote groups of one MPI intercommunicator:
+
+| Side | Local group | Remote group |
+|------|-------------|--------------|
+| Leaving (old) world | the old `MPI_COMM_WORLD` (size = old N) | the new world (size = new M) |
+| Spawned (new) world | the new `MPI_COMM_WORLD` (size = new M) | the old world (size = old N) |
+
+So `MPI_Comm_size(MPI_COMM_WORLD, ...)` gives your own world's size, and `MPI_Comm_remote_size(DMR_INTERCOMM, ...)` gives the *other* world's size. Remote ranks are numbered `0 .. remote_size-1`, and you send to / receive from them by that rank number over `DMR_INTERCOMM` (it is a normal MPI intercommunicator).
+
+### When is `DMR_INTERCOMM` valid?
+
+The intercommunicator only exists during the reconfigure window, and the window is different on each side. Each side must do its transfer inside the matching `DMR_AUTO` callback:
+
+| Side | Valid from | Until | Transfer goes in |
+|------|-----------|-------|------------------|
+| Leaving (old) ranks | `dmr_reconfigure()` returns `DMR_REDIST_FINALIZE` | `dmr_finalize()` (frees it, then the rank exits) | **`redist_func`** (send) |
+| Spawned (new) ranks | `dmr_init()` returns `DMR_RESTART_RECONF` | `dmr_reconfigure()` (frees it) | **`restart_func`** (receive) |
+
+`DMR_AUTO` already sequences these correctly: on the leaving side it calls `dmr_reconfigure()` (which spawns the new world and creates the intercomm) *before* `redist_func`; on the spawned side it calls `restart_func` *before* `dmr_reconfigure()` (which frees the intercomm). The intercommunicator is **not** valid after `dmr_check`/`dmr_init` return in the steady state — `dmr_intercomm_available()` returns 0 there.
+
+### Worked example: redistributing a block-distributed array
+
+The array is split into contiguous blocks, one per rank. After a reconfiguration the number of ranks changes, so the block boundaries move and data must be re-sent. The same code handles both shrink (many → few) and expand (few → many): each old rank sends the slices that overlap each new rank's block, and each new rank receives the slices that overlap its block from each old rank.
+
+```c
+#include <mpi.h>
+#include "dmr.h"
+
+#define GLOBAL_N 1000000          /* total elements, fixed across reconfigurations */
+
+static double *local = NULL;      /* this rank's block */
+static int local_start, local_count;
+
+/* Contiguous block owned by `rank` out of `size` ranks. */
+static void block_range(int rank, int size, int n, int *start, int *count)
+{
+    int base = n / size, rem = n % size;
+    *start = rank * base + (rank < rem ? rank : rem);
+    *count = base + (rank < rem ? 1 : 0);
+}
+
+static inline int imax(int a, int b) { return a > b ? a : b; }
+static inline int imin(int a, int b) { return a < b ? a : b; }
+```
+
+#### Sending side — `redist_func` on the leaving ranks
+
+```c
+/* Called on every old rank once dmr_reconfigure() has created the intercomm. */
+static void send_state(void)
+{
+    int old_size, my_rank, new_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &old_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    MPI_Comm_remote_size(DMR_INTERCOMM, &new_size);   /* size of the new world */
+
+    block_range(my_rank, old_size, GLOBAL_N, &local_start, &local_count);
+
+    /* Send each new rank only the part of my block that lands in its block. */
+    for (int dst = 0; dst < new_size; dst++) {
+        int d_start, d_count;
+        block_range(dst, new_size, GLOBAL_N, &d_start, &d_count);
+
+        int lo = imax(local_start, d_start);
+        int hi = imin(local_start + local_count, d_start + d_count);
+        if (hi > lo) {
+            MPI_Send(&local[lo - local_start], hi - lo, MPI_DOUBLE,
+                     dst, 0, DMR_INTERCOMM);
+        }
+    }
+    free(local);
+    local = NULL;
+}
+```
+
+#### Receiving side — `restart_func` on the spawned ranks
+
+```c
+/* Called on every new rank before it calls dmr_reconfigure(). */
+static void recv_state(void)
+{
+    int new_size, my_rank, old_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &new_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    MPI_Comm_remote_size(DMR_INTERCOMM, &old_size);   /* size of the old world */
+
+    block_range(my_rank, new_size, GLOBAL_N, &local_start, &local_count);
+    local = malloc(local_count * sizeof(double));
+
+    /* Receive from each old rank whose block overlaps mine. */
+    for (int src = 0; src < old_size; src++) {
+        int s_start, s_count;
+        block_range(src, old_size, GLOBAL_N, &s_start, &s_count);
+
+        int lo = imax(local_start, s_start);
+        int hi = imin(local_start + local_count, s_start + s_count);
+        if (hi > lo) {
+            MPI_Recv(&local[lo - local_start], hi - lo, MPI_DOUBLE,
+                     src, 0, DMR_INTERCOMM, MPI_STATUS_IGNORE);
+        }
+    }
+}
+```
+
+#### Wiring it into the main loop
+
+```c
+int main(int argc, char *argv[])
+{
+    MPI_Init(&argc, &argv);
+
+    /* On a spawned rank, dmr_init returns DMR_RESTART_RECONF and DMR_AUTO
+       runs recv_state() (intercomm still valid) before dmr_reconfigure(). */
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, recv_state(), (void)NULL);
+
+    /* First launch only: allocate and fill the initial block. */
+    if (dmr_get_reconfig_count() == 0 && local == NULL) {
+        int size, rank;
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        block_range(rank, size, GLOBAL_N, &local_start, &local_count);
+        local = malloc(local_count * sizeof(double));
+        /* ... initialize local[] ... */
+    }
+
+    while (work_remaining()) {
+        /* On a leaving rank, dmr_reconfigure() (called inside DMR_AUTO) spawns
+           the new world, then DMR_AUTO runs send_state() while the intercomm
+           is valid, then finalizes and exits the rank. */
+        DMR_AUTO(dmr_check(ROUND_POLICY), send_state(), (void)NULL, (void)NULL);
+        do_work(local, local_count);
+    }
+
+    DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, (void)NULL);
+    MPI_Finalize();
+    return 0;
+}
+```
+
+:::note[Expand vs shrink]
+The send/receive loops above are symmetric and need no special-casing: on a **shrink** (`old_size > new_size`) each new rank's block is larger, so it receives slices from several old ranks (a gather); on an **expand** (`old_size < new_size`) each old rank's block is larger, so it sends slices to several new ranks (a scatter). Because the whole world is replaced, every new rank rebuilds its block entirely from the intercomm — nothing is reused in place.
+:::
+
+### Carrying the resume point without a disk checkpoint
+
+In checkpoint-restart mode the loop index is usually restored from the same file as the data (see [Application Structure](app-structure)). In intercommunicator mode there is no file, so send the resume index over `DMR_INTERCOMM` alongside the array — e.g. have old rank 0 `MPI_Send` it to new rank 0 in `send_state`, and have new rank 0 `MPI_Recv` it in `recv_state` and broadcast it over the new `MPI_COMM_WORLD`.
+
+`dmr_get_reconfig_count()` only tells you *how many times* the job has reconfigured since launch — it is not a work-progress counter, so do not use it as the resume index unless your iteration count happens to equal the reconfiguration count.
+
+---
+
+# MiniDMR Local Cluster
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/minidmr/
+
+**MiniDMR** is a CLI tool for creating and managing local Docker-based DMR clusters. It is the recommended way to run DMR locally for demos, development, and CI pipelines.
+
+## Use cases
+
+| Use case | Description |
+|----------|-------------|
+| **Demos / workshops** | Reproducible multi-node cluster, starts and stops cleanly |
+| **DMR core development** | Container images with all dependencies preinstalled |
+| **App development** | Separate image with DMR fully installed; focus on your app |
+| **CI pipelines** | Temporary containerized cluster for integration testing |
+
+## Installation
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs groupId="os">
+  <TabItem value="linux" label="Linux / macOS">
+
+  Latest release:
+  ```bash
+  curl -fsSL https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/raw/master/scripts/install.sh | bash
+  ```
+
+  Specific version (e.g. `v0.0.4`):
+  ```bash
+  curl -fsSL https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/raw/master/scripts/install.sh | bash -s -- v0.0.4
+  ```
+
+  Install to a custom directory (no `sudo`):
+  ```bash
+  curl -fsSL .../install.sh | bash -s -- --install-dir ~/.local/bin
+  ```
+
+  </TabItem>
+  <TabItem value="windows" label="Windows (PowerShell)">
+
+  Latest release:
+  ```powershell
+  irm https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/raw/master/scripts/install.ps1 | iex
+  ```
+
+  Specific version:
+  ```powershell
+  & ([scriptblock]::Create((irm .../install.ps1))) -Version v0.0.4
+  ```
+
+  </TabItem>
+</Tabs>
+
+For manual installation, download the binary from the [Releases page](https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/releases).
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `start` | Start a multi-node Docker-based DMR cluster |
+| `enter` | Drop into the controller node interactively |
+| `install` | Install RPM packages with `dnf` in the running cluster |
+| `upgrade` | Upgrade `minidmr` to the latest or a specific release |
+| `stop` | Stop and remove all containers |
+| `version` | Print the current version |
+
+## Quick example
+
+```bash
+# Start a 4-node cluster
+minidmr start --nodes 4
+
+# Enter the controller node
+minidmr enter
+
+# Stop and remove the cluster
+minidmr stop
+```
+
+## Running DMR tests
+
+```bash
+minidmr start --nodes 4
+minidmr enter
+```
+
+Inside the controller node:
+
+```bash
+git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
+cd dmr
+export DMR_PATH=$(pwd)
+
+cd tests/ci
+./dmr_full_test_run.sh compile/build_slurm4dmr_notalp.sh
+```
+
+The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box.
+
+## start flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
+| `-n, --nodes` | Number of `slurmd` nodes | `4` |
+| `--packages-file` | JSON package manifest installed after startup | `$HOME/.minihpc/packages.json` |
+
+Package manifest format:
+
+```json
+{
+  "packages": ["blas-devel", "lapack-devel"],
+  "controller": ["gcc-gfortran"]
+}
+```
+
+## install flags
+
+| Flag | Description |
+|------|-------------|
+| `-c, --controller-only` | Install only on the controller node |
+
+:::note
+If stopped containers from a previous cluster are found (e.g. after a reboot), `minidmr start` resumes them instead of creating a new cluster.
+:::
+
+---
+
+# Manual Reconfiguration Control
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/custom-policies/
+
+DMR does not have a custom policy plugin interface yet. Instead, you implement reconfiguration logic directly in your application code and pass `SHOULD_EXPAND`, `SHOULD_SHRINK`, or `SHOULD_STAY` to `dmr_check`.
+
+## Basic pattern
+
+```c
+while (should_keep_running()) {
+    DMRSuggestion suggestion = my_decide();
+    DMR_AUTO(dmr_check(suggestion), save(), (void)NULL, cleanup());
+    do_work();
+}
+```
+
+`my_decide()` is plain application code. It reads DMR state, applies whatever logic fits your workload, and returns a suggestion.
+
+## Key functions for decision logic
+
+| Function | Description |
+|----------|-------------|
+| `dmr_get_current_node_count()` | Current node count in `MPI_COMM_WORLD` |
+| `dmr_get_reconfig_count()` | Number of reconfigurations since launch |
+| `dmr_get_active_expansions()` | Number of expansion jobs currently active |
+| `dmr_pending_expansion()` | `1` if an expansion is pending |
+| `dmr_set_nodes_next_expand(n)` | Request `n` nodes in the next expand |
+| `dmr_set_nodes_next_shrink(n)` | Remove `n` nodes in the next shrink |
+| `dmr_cancel_expansion()` | Cancel a pending expansion (collective) |
+
+## Example: phase-driven scaling
+
+A common pattern is to scale based on the current phase of computation. Shrink before a communication-heavy phase, expand before a compute-heavy one:
+
+```c
+typedef enum { PHASE_COMPUTE, PHASE_COMMUNICATE } Phase;
+
+DMRSuggestion decide(Phase current_phase, int max_nodes, int min_nodes)
+{
+    int nodes = dmr_get_current_node_count();
+
+    if (current_phase == PHASE_COMPUTE && nodes < max_nodes) {
+        dmr_set_nodes_next_expand(max_nodes - nodes);
+        return SHOULD_EXPAND;
+    }
+
+    if (current_phase == PHASE_COMMUNICATE && nodes > min_nodes) {
+        dmr_set_nodes_next_shrink(nodes - min_nodes);
+        return SHOULD_SHRINK;
+    }
+
+    return SHOULD_STAY;
+}
+```
+
+## Example: time-window scaling
+
+In time-constrained environments you may want to request resources early and fall back to smaller requests as the deadline approaches. This is the strategy used in [loop-qc](https://gitlab.bsc.es/accelcom/releases/dmr/loop-qc):
+
+```c
+/* Try to get max_nodes early in the window. As time runs out,
+   halve the target until it is no longer worth expanding.
+   Cancel any pending request that is being replaced. */
+DMRSuggestion decide_by_window(int max_nodes, int min_nodes,
+                               double elapsed_s, double window_s)
+{
+    double remaining = window_s - elapsed_s;
+
+    if (remaining < 60.0) {
+        dmr_cancel_expansion();
+        return SHOULD_STAY;
+    }
+
+    int target = max_nodes;
+    double stage_end = 0.0;
+    double fraction = 0.5;
+
+    while (target >= min_nodes * 2) {
+        stage_end += window_s * fraction;
+
+        if (elapsed_s <= stage_end) {
+            int to_add = target - dmr_get_current_node_count();
+            if (to_add > 0) {
+                dmr_cancel_expansion();
+                dmr_set_nodes_next_expand(to_add);
+                return SHOULD_EXPAND;
+            }
+            return SHOULD_STAY;
+        }
+
+        target /= 2;
+        fraction /= 2;
+    }
+
+    return SHOULD_STAY;
+}
+```
+
+## Sizing the next operation
+
+Override the number of nodes or processes for the **next** reconfiguration only. Values reset after each reconfiguration.
+
+```c
+dmr_set_nodes_next_expand(int nodes);
+dmr_set_procs_next_expand(int procs);  // total processes across all new nodes
+dmr_set_ppn_next_expand(int ppn);      // processes per node
+dmr_set_nodes_next_shrink(int nodes);
+dmr_set_procs_next_shrink(int procs);
+dmr_set_jobs_next_shrink(int jobs);    // remove N whole expansion jobs
+```
+
+## Cancelling a pending expansion
+
+If conditions change and you no longer want a pending expansion:
+
+```c
+if (dmr_pending_expansion()) {
+    dmr_cancel_expansion();  // collective, all ranks must call
+}
+```
+
+## Using the inhibitor
+
+To rate-limit how often DMR attempts a reconfiguration regardless of the suggestion:
+
+```c
+dmr_set_reconf_step_inhibitor(9);  // 1 in every 10 calls is acted on
+DMR_AUTO(dmr_check(SHOULD_EXPAND), save(), (void)NULL, cleanup());
+```
+
+---
+
+# DMR Policies
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/dmr-policies/
+
+DMR ships several policies that cover the most common scaling strategies. You select one by passing the corresponding `DMRSuggestion` value to `dmr_check`. All policies respect the `DMR_DEFAULT_POLICY_MIN` and `DMR_DEFAULT_POLICY_MAX` bounds, which you can set via environment variables or the runtime setters.
+
+## ROUND_POLICY
+
+Multiplies the current node count by `stride` at each reconfiguration step. When the result would exceed `max_nodes`, it wraps back to `min_nodes`.
+
+```c
+DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
+```
+
+With `MIN=1`, `MAX=8`, `STRIDE=2`: sequence is 1 → 2 → 4 → 8 → 1 → …
+
+| Parameter | Runtime setter | Env var | CMake flag | Default |
+|-----------|---------------|---------|------------|---------|
+| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
+| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
+| Stride (multiplier) | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE` | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
+
+## LIST_POLICY
+
+Cycles through a hardcoded sequence of node counts `{2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1}`, advancing one step per reconfiguration. Designed for testing and benchmarking.
+
+```c
+DMR_AUTO(dmr_check(LIST_POLICY), save(), (void)NULL, cleanup());
+```
+
+No configuration parameters.
+
+## CE_POLICY
+
+Measures the accumulated communication efficiency via TALP and adjusts the node count to keep it near a target. Requires `DMR_USE_TALP=1` at compile time.
+
+```c
+DMR_AUTO(dmr_check(CE_POLICY), save(), (void)NULL, cleanup());
+```
+
+| Parameter | Runtime setter | Env var | CMake flag | Default |
+|-----------|---------------|---------|------------|---------|
+| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
+| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
+| Target CE | — | `DMR_TALP_TARGET_CE` | `DMR_TALP_TARGET_CE` | `0.8` |
+| Sensitivity | — | `DMR_TALP_SENSITIVITY` | `DMR_TALP_SENSITIVITY` | `15` |
+
+## Slurm4DMR policies
+
+These variants are designed for Slurm4DMR mode and require `DMR_JOBS_CAN_GROW=1`.
+
+### SLURM4DMR_ROUND_POLICY
+
+Same multiplier logic as `ROUND_POLICY` but operates within a Slurm4DMR allocation.
+
+| Parameter | Runtime setter | Env var | CMake flag | Default |
+|-----------|---------------|---------|------------|---------|
+| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
+| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
+| Stride | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE` | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
+
+### SLURM4DMR_CE_POLICY
+
+Same communication-efficiency logic as `CE_POLICY` but for Slurm4DMR. Same parameters as CE_POLICY above.
+
+### SLURM4DMR_QUEUE_POLICY
+
+Targets a preferred node count while respecting min and max, consulting cluster status from Slurm4DMR.
+
+```c
+DMR_AUTO(dmr_check(SLURM4DMR_QUEUE_POLICY), save(), (void)NULL, cleanup());
+```
+
+| Parameter | Runtime setter | Env var | CMake flag | Default |
+|-----------|---------------|---------|------------|---------|
+| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
+| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
+| Preferred nodes | `dmr_set_policy_pref_nodes(n)` | `DMR_DEFAULT_POLICY_PREF` | `DMR_DEFAULT_POLICY_PREF` | `1` |
+| Stride | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE` | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
+
+---
+
+# Overview
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/overview/
+
+A **policy** tells DMR how to decide when and how to reconfigure. You select a policy by passing a `DMRSuggestion` value to `dmr_check`.
+
+## DMRSuggestion values
+
+```c
+DMRAction action = dmr_check(ROUND_POLICY);
+```
+
+| Value | Description |
+|-------|-------------|
+| `ROUND_POLICY` | Doubles node count up to `max_nodes`, then wraps back to `min_nodes` |
+| `LIST_POLICY` | Iterates through a fixed list of node counts |
+| `CE_POLICY` | Targets a communication efficiency value (requires TALP) |
+| `SLURM4DMR_ROUND_POLICY` | Like `ROUND_POLICY`, adapted for Slurm4DMR mode |
+| `SLURM4DMR_CE_POLICY` | Like `CE_POLICY`, adapted for Slurm4DMR mode |
+| `SLURM4DMR_QUEUE_POLICY` | Tries to stay at preferred nodes, respects min/max |
+| `SHOULD_EXPAND` | Manual: expand by `DMR_NODES_IN_EXPAND` nodes |
+| `SHOULD_SHRINK` | Manual: shrink by `DMR_NODES_IN_SHRINK` nodes |
+| `SHOULD_STAY` | Manual: do not reconfigure this iteration |
+
+## Configuring policies
+
+Parameters can be set at three levels, in order of priority (highest first):
+
+1. **Runtime** — setter functions called before the main loop (collective, all ranks must call)
+2. **Environment variable** — set before launching with `dmr`
+3. **Compile time** — CMake flag at build time
+
+```c
+dmr_set_policy_min_nodes(2);   // DMR will not go below 2 nodes
+dmr_set_policy_max_nodes(16);  // DMR will not go above 16 nodes
+dmr_set_policy_stride(2);      // multiplier for ROUND_POLICY
+dmr_set_policy_pref_nodes(8);  // preferred count for QUEUE_POLICY
+```
+
+```bash
+DMR_DEFAULT_POLICY_MIN=2 DMR_DEFAULT_POLICY_MAX=16 dmr mpirun -n 2 ./my_app
+```
+
+Each policy's accepted parameters are listed in [DMR Policies](dmr-policies).
+
+## Manual control
+
+Use `SHOULD_EXPAND` or `SHOULD_SHRINK` when your application decides reconfiguration timing itself:
+
+```c
+if (my_app_needs_more_resources()) {
+    dmr_set_nodes_next_expand(4);
+    DMR_AUTO(dmr_check(SHOULD_EXPAND), save_data(), (void)NULL, cleanup());
+}
+```
+
+## Inhibitor
+
+Throttle how often DMR attempts a reconfiguration. If the inhibitor is `N`, then `N` out of every `N+1` calls to `dmr_check` are skipped:
+
+```c
+dmr_set_reconf_step_inhibitor(9);  // reconfigure on every 10th call
+```
+
+Or at compile/run time: `DMR_DEFAULT_INHIBITOR=9`.
+
+---
+
+# Reconfiguration Handling
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/reconfiguration-handling/
+
+`DMR_AUTO` dispatches to the right callback based on the `DMRAction` returned by a DMR function.
+
+## DMR_AUTO signature
+
+```c
+DMR_AUTO(the_action, redist_func, restart_func, finalize_func)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `the_action` | `DMRAction` | Return value of `dmr_init`, `dmr_check`, or `dmr_finalize` |
+| `redist_func` | expression | Called when data must be **saved** before this rank exits |
+| `restart_func` | expression | Called when data must be **restored** after a restart |
+| `finalize_func` | expression | Called for **cleanup** before a rank exits |
+
+## Dispatch table
+
+| DMRAction | What DMR_AUTO does |
+|-----------|--------------------|
+| `DMR_NO_ACTION` | Nothing |
+| `DMR_RECONF` | Calls `dmr_reconfigure()`. If that returns `DMR_REDIST_FINALIZE`, calls `redist_func`, `finalize_func`, then `dmr_finalize()` (rank exits) |
+| `DMR_RESTART_RECONF` | Calls `restart_func`, then `dmr_reconfigure()` |
+| `DMR_REDIST_FINALIZE` | Calls `redist_func`, `finalize_func`, then `dmr_finalize()` (rank exits) |
+| `DMR_FINALIZE` | Calls `finalize_func`, then `dmr_finalize()` (rank exits) |
+| `DMR_CLEANUP` | Calls `finalize_func` |
+| `DMR_ERROR` | Does nothing |
+
+## Which callback fires on which side
+
+A reconfiguration produces two groups of processes, and `DMR_AUTO` runs a different callback on each. This mapping is the practical consequence of the dispatch table above; keep it in mind when deciding where to put your save/restore code.
+
+| Process group | Action it sees | `DMR_AUTO` runs | Then |
+|---------------|---------------|-----------------|------|
+| **Leaving** ranks (the old world) | `dmr_reconfigure()` returns `DMR_REDIST_FINALIZE` | `redist_func` → `finalize_func` | `dmr_finalize()` — the rank **exits** |
+| **Spawned** ranks (the new world) | `dmr_init()` returns `DMR_RESTART_RECONF` | `restart_func` | `dmr_reconfigure()` — then continues into the loop |
+
+There is no third "surviving" group: the spawn creates an entirely new `MPI_COMM_WORLD` and every leaving rank exits. So `redist_func` is always your **send/save** side and `restart_func` is always your **receive/load** side. In intercommunicator mode (`DMR_CHECKPOINT_RESTART=0`) this ordering is also what keeps `DMR_INTERCOMM` valid in each callback — see [Data Redistribution](data-redistribution).
+
+## Usage examples
+
+```c
+// dmr_init: load state if restarting
+DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), cleanup());
+
+// dmr_check: save state on ranks that are about to exit
+DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
+
+// dmr_finalize: cleanup only
+DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
+```
+
+Pass `(void)NULL` for any callback you do not need.
+## Implementing the callbacks
+
+### redist_func: save state before exiting
+
+Called on ranks that are about to exit during a reconfiguration. Write application state to disk so the new process configuration can restore it.
+
+```c
+void save(void)
+{
+    FILE *f = fopen("checkpoint.bin", "wb");
+    fwrite(&my_state, sizeof(my_state), 1, f);
+    fclose(f);
+}
+```
+
+With `DMR_CHECKPOINT_RESTART=0`, send data directly via `DMR_INTERCOMM` instead of writing to disk. See [Data Redistribution](data-redistribution) for details.
+
+### restart_func: restore state after restart
+
+Called on processes restarting after a reconfiguration. Read the state written by `redist_func`.
+
+```c
+void load(void)
+{
+    FILE *f = fopen("checkpoint.bin", "rb");
+    fread(&my_state, sizeof(my_state), 1, f);
+    fclose(f);
+}
+```
+
+`DMR_AUTO` only calls `restart_func` when `dmr_init` returns `DMR_RESTART_RECONF`, so no guard for first launch is needed.
+
+### finalize_func: clean up resources
+
+Called on any rank that is about to terminate. Free memory, close file handles, etc.
+
+```c
+void cleanup(void)
+{
+    free(my_data);
+}
+```
+
+:::warning Do not call `MPI_Finalize` (or anything that does) in `finalize_func`
+On a leaving rank, `DMR_AUTO` calls `dmr_finalize()` right after `finalize_func`, and `dmr_finalize()` itself calls `MPI_Finalize()` and then `exit()` — your post-loop `MPI_Finalize()` is never reached on that rank. If `finalize_func` also finalizes MPI, you get a double `MPI_Finalize`, which is undefined behaviour and typically aborts the in-progress reconfiguration.
+
+This matters most when a library (e.g. a simulator) owns MPI: its teardown routine may call `MPI_Finalize` internally. On leaving ranks, free the library's MPI-bound state in `finalize_func` *only* in a way that does not finalize MPI, and let `dmr_finalize()` finalize MPI for you. See [Application Structure](app-structure#who-owns-mpi_init-and-mpi_finalize) for who should own `MPI_Init`/`MPI_Finalize`.
+:::
+
+## Without the macro
+
+```c
+DMRAction action = dmr_check(ROUND_POLICY);
+if (action == DMR_RECONF) {
+    if (dmr_reconfigure() == DMR_REDIST_FINALIZE) {
+        save();
+        cleanup();
+        dmr_finalize();
+    }
+} else if (action == DMR_RESTART_RECONF) {
+    load();
+    dmr_reconfigure();
+}
+```
