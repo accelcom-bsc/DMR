@@ -1092,6 +1092,8 @@ When using DMR, please, cite, at least, this work:
 
 ### Scientific applications
 
+- P. Sandås et al., "Malleable Molecular Dynamics Simulations with GROMACS and DMR." *PPAM 2026* (in-press), Sep. 2026.
+
 - S. Iserte et al., "Malleable Computational Fluid Dynamics Simulations." *Parallel CFD 2025* (in-press), Nov. 2025.
 
 - S. Iserte and K. Rojek, "A Study of the Effect of Process Malleability in the Energy Efficiency on GPU-based Clusters." *Journal of Supercomputing*, Oct. 2020. https://doi.org/10.1007/s11227-019-03034-x
