@@ -28,6 +28,14 @@
   background: var(--ifm-background-surface-color);
 }
 
+.featuresTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--ifm-color-emphasis-900);
+}
+
 .featureCard {
   padding: 1.5rem;
   border: 1px solid var(--ifm-color-emphasis-200);
@@ -46,4 +54,63 @@
   font-size: 0.9rem;
   color: var(--ifm-color-emphasis-700);
   margin: 0;
+}
+
+.news {
+  padding: 3rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+.newsTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--ifm-color-emphasis-900);
+}
+
+.newsCard {
+  padding: 1.5rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-card-border-radius);
+  height: 100%;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.newsDate {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.newsCard h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--ifm-color-emphasis-900);
+}
+
+.newsCard p {
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-700);
+  margin: 0 0 1rem 0;
+  flex-grow: 1;
+}
+
+.newsLink {
+  display: inline-block;
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.newsLink:hover {
+  color: var(--ifm-color-primary-dark);
+  text-decoration: underline;
 }

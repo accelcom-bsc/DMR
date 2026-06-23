@@ -22,6 +22,26 @@ const features = [
   },
 ];
 
+const news = [
+  {
+    date: 'June 2026',
+    title: 'Accepted paper at PPAM 2026',
+    description: 'Entitled: "Malleable Molecular Dynamics Simulations with GROMACS and DMR".',
+  },
+  {
+    date: 'June 2026',
+    title: 'DMR @ ISC High Performance 2026 in Hamburg (Germany)',
+    description: 'Participating in the Birds of a Feather (BoF) session:"Sharing Experiences and Challenges in the Dynamic Use of Resources in HPC/AI".',
+    link: 'https://isc-hpc.com/program/schedule',
+  },
+  {
+    date: 'June 2026',
+    title: 'DMR @ HPCKP 2026 in Barcelona (Spain)',
+    description: 'Presenting: "Dynamic Resource Management in Quantum Circuit Simulations".',
+    link: 'https://hpckp.org/annual-meeting/agenda/annual-meeting/dynamic-resource-management-in-quantum-circuit-simulations/',
+  },
+];
+
 export default function Home() {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -40,7 +60,30 @@ export default function Home() {
           </div>
         </div>
 
+        <div className={styles.news}>
+          <h2 className={styles.newsTitle}>Latest News</h2>
+          <div className="container">
+            <div className="row">
+              {news.map(({date, title, description, link}) => (
+                <div key={title} className="col col--3">
+                  <div className={styles.newsCard}>
+                    <span className={styles.newsDate}>{date}</span>
+                    <h3>{title}</h3>
+                    <p>{description}</p>
+                    {link && (
+                      <Link className={styles.newsLink} to={link}>
+                        Read more →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className={styles.features}>
+          <h2 className={styles.featuresTitle}>Key Features</h2>
           <div className="container">
             <div className="row">
               {features.map(({title, description}) => (
