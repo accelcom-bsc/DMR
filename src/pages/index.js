@@ -40,6 +40,12 @@ const news = [
     description: 'Presenting: "Dynamic Resource Management in Quantum Circuit Simulations".',
     link: 'https://hpckp.org/annual-meeting/agenda/annual-meeting/dynamic-resource-management-in-quantum-circuit-simulations/',
   },
+  {
+    date: 'May 2026',
+    title: 'Accepted tutorial at PPAM 2026',
+    description: 'Entitled: "Dynamic Resource Management for HPC".',
+    link: 'https://ppam.edu.pl/tutorials#tutorials',
+  },
 ];
 
 export default function Home() {
