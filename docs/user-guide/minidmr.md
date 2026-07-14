@@ -65,6 +65,8 @@ For manual installation, download the binary from the [Releases page](https://gi
 | `upgrade` | Upgrade `minidmr` to the latest or a specific release |
 | `stop` | Stop and remove all containers |
 | `version` | Print the current version |
+| `completion` | Generate shell autocompletion scripts |
+| `help` | Display help about any command |
 
 ## Quick example
 
@@ -74,6 +76,12 @@ minidmr start --nodes 4
 
 # Enter the controller node
 minidmr enter
+
+# Install packages on all cluster nodes
+minidmr install blas-devel lapack-devel
+
+# Upgrade minidmr to the latest release
+minidmr upgrade
 
 # Stop and remove the cluster
 minidmr stop
@@ -99,15 +107,27 @@ cd tests/ci
 
 The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box.
 
+## Global flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--data_dir` | Directory for storing cluster data and configuration | `$HOME/.minihpc` |
+
 ## start flags
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
 | `-n, --nodes` | Number of `slurmd` nodes | `4` |
-| `--packages-file` | JSON package manifest installed after startup | `$HOME/.minihpc/packages.json` |
+| `--packages-file` | JSON package manifest installed after startup | `$data_dir/packages.json` if it exists |
 
-Package manifest format:
+By default, `start` looks for a package manifest at `$data_dir/packages.json` and installs it when present. The manifest can be a plain array:
+
+```json
+["blas-devel", "lapack-devel"]
+```
+
+Or an object with packages for all nodes and controller-only packages:
 
 ```json
 {
@@ -122,6 +142,18 @@ Package manifest format:
 |------|-------------|
 | `-c, --controller-only` | Install only on the controller node |
 
+## upgrade flags
+
+| Flag | Description |
+|------|-------------|
+| `-v, --version` | Install a specific release tag instead of the latest |
+
+## enter flags
+
+| Flag | Description |
+|------|-------------|
+| `-w, --workdir` | Working directory inside the container (default: mapped from current working directory) |
+
 :::note
-If stopped containers from a previous cluster are found (e.g. after a reboot), `minidmr start` resumes them instead of creating a new cluster.
+If stopped containers from a previous cluster are found (e.g. after a reboot), `minidmr start` resumes them instead of creating a new cluster. If `--nodes` is explicitly set and differs from the previous cluster size, `start` asks whether to remove the old cluster and create a new one.
 :::
