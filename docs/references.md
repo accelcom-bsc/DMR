@@ -55,6 +55,8 @@ When using DMR, please, cite, at least, this work:
 
 ### Workloads
 
+- M. Cipollini et al., "Three ways to share a QPU: Scheduling strategies for hybrid Quantum-HPC applications." *Future Generation Computer Systems*, Jan. 2026. https://doi.org/https://doi.org/10.1016/j.future.2026.108699
+
 - S. Iserte et al., "MPI Malleability Validation under Replayed Real-World HPC Conditions." *Future Generation Computer Systems*, Dec. 2025. https://doi.org/10.1016/j.future.2025.108305
 
 ### State of the art
@@ -62,6 +64,7 @@ When using DMR, please, cite, at least, this work:
 - A. Tarraf et al., "Malleability in Modern HPC Systems: Current Experiences, Challenges, and Future Opportunities." *IEEE TPDS*, Jun. 2024. https://doi.org/10.1109/TPDS.2024.3406764
 
 - J. Aliaga et al., "A Survey on Malleability Solutions for High-Performance Distributed Computing." *Applied Science*, May 2022. https://doi.org/10.3390/app12105231
+
 
 ### DMRv1
 
