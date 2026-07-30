@@ -1857,8 +1857,12 @@ For manual installation, download the binary from the [Releases page](https://gi
 |---------|-------------|
 | `start` | Start a multi-node Docker-based DMR cluster |
 | `enter` | Drop into the controller node interactively |
+| `exec` | Run an arbitrary command on the controller node |
+| `srun` | Run a Slurm job on the cluster via `srun`, blocking |
+| `sbatch` | Submit a batch job to the cluster via `sbatch` |
 | `install` | Install RPM packages with `dnf` in the running cluster |
 | `upgrade` | Upgrade `minidmr` to the latest or a specific release |
+| `status` | Show whether the cluster is running and how many nodes it has |
 | `stop` | Stop and remove all containers |
 | `version` | Print the current version |
 | `completion` | Generate shell autocompletion scripts |
@@ -1870,14 +1874,39 @@ For manual installation, download the binary from the [Releases page](https://gi
 # Start a 4-node cluster
 minidmr start --nodes 4
 
+# Start a cluster whose image already ships with the user, injecting env vars
+# into every container (controller + workers)
+minidmr start --no-user-setup -e DMR_PATH=/home/malluser/dmr
+
 # Enter the controller node
 minidmr enter
+
+# Run an arbitrary command on the controller node (e.g. to compile DMR)
+minidmr exec -u malluser -- bash -c 'source env_setup.sh && ./build.sh'
+
+# Run a Slurm job, blocking until it finishes; the exit code is propagated
+minidmr srun -u malluser -e DMR_CHECKPOINT_RESTART=1 -- -N2 mpirun ./my_test
+
+# Submit a batch job via sbatch, from a script on the controller node
+minidmr sbatch -u malluser -- job.sbatch
+
+# Or, for a quick one-off job without a script file
+minidmr sbatch -u malluser -- --wrap 'hostname'
 
 # Install packages on all cluster nodes
 minidmr install blas-devel lapack-devel
 
+# Install a package only on the controller node
+minidmr install --controller-only gcc-gfortran
+
 # Upgrade minidmr to the latest release
 minidmr upgrade
+
+# Check whether the cluster is running and how many nodes it has
+minidmr status
+
+# Same, as machine-readable JSON
+minidmr status --json
 
 # Stop and remove the cluster
 minidmr stop
@@ -1916,6 +1945,8 @@ The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box
 | `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
 | `-n, --nodes` | Number of `slurmd` nodes | `4` |
 | `--packages-file` | JSON package manifest installed after startup | `$data_dir/packages.json` if it exists |
+| `--no-user-setup` | Skip creating/configuring the demo user, for images that already ship with the target user | `false` |
+| `-e, --env` | Env var (`KEY=VALUE`) injected into every container; repeatable | - |
 
 By default, `start` looks for a package manifest at `$data_dir/packages.json` and installs it when present. The manifest can be a plain array:
 
@@ -1943,6 +1974,12 @@ Or an object with packages for all nodes and controller-only packages:
 | Flag | Description |
 |------|-------------|
 | `-v, --version` | Install a specific release tag instead of the latest |
+
+## status flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output status as JSON instead of human-readable text |
 
 ## enter flags
 
