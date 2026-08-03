@@ -1075,10 +1075,11 @@ Contact: [accelcom@bsc.es](mailto:accelcom@bsc.es)
 
 ## Highlighted Publications
 
+{/*
 When using DMR, please, cite, at least, this work:
 
 - P. Sandås et al., "Dynamic Resource Management in Production HPC Clusters." *arXiv*, June 2026. https://doi.org/10.48550/arXiv.2606.13266
-
+*/}
 
 ### Runtimes
 
@@ -1945,8 +1946,11 @@ The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box
 | `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
 | `-n, --nodes` | Number of `slurmd` nodes | `4` |
 | `--packages-file` | JSON package manifest installed after startup | `$data_dir/packages.json` if it exists |
+<<<<<<< HEAD
 | `--no-user-setup` | Skip creating/configuring the demo user, for images that already ship with the target user | `false` |
 | `-e, --env` | Env var (`KEY=VALUE`) injected into every container; repeatable | - |
+=======
+>>>>>>> e3e26c6 (production reference commented because a change in th etitle in arxiv)
 
 By default, `start` looks for a package manifest at `$data_dir/packages.json` and installs it when present. The manifest can be a plain array:
 
@@ -1975,12 +1979,15 @@ Or an object with packages for all nodes and controller-only packages:
 |------|-------------|
 | `-v, --version` | Install a specific release tag instead of the latest |
 
+<<<<<<< HEAD
 ## status flags
 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output status as JSON instead of human-readable text |
 
+=======
+>>>>>>> e3e26c6 (production reference commented because a change in th etitle in arxiv)
 ## enter flags
 
 | Flag | Description |
