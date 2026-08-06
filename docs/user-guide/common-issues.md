@@ -47,6 +47,52 @@ DMR Error: Issue fetching Slurm job ID info from environment.
 
 ---
 
+## dmr_wrapper can't find the executable
+
+**Symptom:**
+```
+Error: dmr_wrapper was not able to find an executable in the provided command
+```
+
+**Cause:** `dmr_wrapper` looks for the executable by scanning the command's arguments for the first one that is either a file that exists and is executable relative to the job's current working directory, or a name resolvable via `PATH`. A relative path (e.g. `./build/my_app`) only works if that working directory is what you think it is -- Slurm jobs default to the submission directory (`$SLURM_SUBMIT_DIR`), not necessarily wherever the batch script file itself lives, especially with nested Slurm setups (Slurm4DMR) or scripts that live in a subdirectory of the project.
+
+**Fix:** use an absolute path to the executable instead of a relative one, e.g. anchored on `$SLURM_SUBMIT_DIR`.
+
+---
+
+## App starts already at full size, no reconfigs happen
+
+**Symptom:** the app runs and finishes immediately, `dmr_check` reports the target size already reached with `0 reconfig(s)` -- it never grows.
+
+**Cause:** `mpirun --host host1:1,host2:1,...` without `-np` uses every slot the hostlist offers, so the app starts at that full size right away instead of at 1 process. `dmr_wrapper` expects `-np`/`--np` to be present -- it explicitly strips it back out when rebuilding the launch command for each reconfig.
+
+**Fix:** pass `-np 1` (or whatever the intended starting size is) explicitly.
+
+---
+
+## Expand hangs forever waiting for Slurm resources
+
+**Symptom:** `dmr_check` reports `SHOULD EXPAND`, then the app hangs indefinitely, repeatedly logging `About to read expander job (ID N) state...` / `Read expander job state: 0...`.
+
+**Cause:** DMR grows by submitting its own separate "expander jobs" to Slurm to claim more nodes. If the app's own job already holds every node available in its partition/allocation (e.g. submitted with `--exclusive` over the whole cluster), there's nothing left for the expander job to land on, so it stays pending forever. `DMR_NODES_IN_EXPAND` (default `1`) matters too: if it's set higher than the number of nodes actually free, the expander job can never be satisfied either.
+
+**Fix:** leave free nodes in the allocation/partition for expander jobs to use -- don't let the app's own job request all of them -- and make sure `DMR_NODES_IN_EXPAND` doesn't exceed how many nodes are actually free to grow into.
+
+---
+
+## libhcoll.so.1 missing (MareNostrum5)
+
+**Symptom:**
+```
+error while loading shared libraries: libhcoll.so.1: cannot open shared object file: No such file or directory
+```
+
+**Cause:** on MareNostrum5, `libhcoll.so.1` isn't on the default `LD_LIBRARY_PATH`. Shows up two ways: loading the `dlb-for-dmr` module (for TALP support) sets `LD_PRELOAD=.../libdlb_mpi.so`, which needs it -- breaking *every* subsequent command in that shell, not just DMR/MPI ones; and apps linked against the DMR-provided OpenMPI (`openmpi-for-dmr`) need it at runtime on the compute nodes they get launched on.
+
+**Fix:** add `/opt/mellanox/hcoll/lib` to `LD_LIBRARY_PATH`. If TALP isn't needed, simplest is to not load `dlb-for-dmr` at all.
+
+---
+
 ## cgroup.conf parse errors in slurm output
 
 **Symptom:**
