@@ -1696,19 +1696,6 @@ Error: dmr_wrapper was not able to find an executable in the provided command
 
 ---
 
-## libhcoll.so.1 missing (MareNostrum5)
-
-**Symptom:**
-```
-error while loading shared libraries: libhcoll.so.1: cannot open shared object file: No such file or directory
-```
-
-**Cause:** on MareNostrum5, `libhcoll.so.1` isn't on the default `LD_LIBRARY_PATH`. Shows up two ways: loading the `dlb-for-dmr` module (for TALP support) sets `LD_PRELOAD=.../libdlb_mpi.so`, which needs it -- breaking *every* subsequent command in that shell, not just DMR/MPI ones; and apps linked against the DMR-provided OpenMPI (`openmpi-for-dmr`) need it at runtime on the compute nodes they get launched on.
-
-**Fix:** add `/opt/mellanox/hcoll/lib` to `LD_LIBRARY_PATH`. If TALP isn't needed, simplest is to not load `dlb-for-dmr` at all.
-
----
-
 ## cgroup.conf parse errors in slurm output
 
 **Symptom:**
