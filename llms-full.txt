@@ -2573,7 +2573,7 @@ void cleanup(void)
 }
 ```
 
-:::warning Do not call `MPI_Finalize` (or anything that does) in `finalize_func`
+:::warning[Do not call `MPI_Finalize` (or anything that does) in `finalize_func`]
 On a leaving rank, `DMR_AUTO` calls `dmr_finalize()` right after `finalize_func`, and `dmr_finalize()` itself calls `MPI_Finalize()` and then `exit()` — your post-loop `MPI_Finalize()` is never reached on that rank. If `finalize_func` also finalizes MPI, you get a double `MPI_Finalize`, which is undefined behaviour and typically aborts the in-progress reconfiguration.
 
 This matters most when a library (e.g. a simulator) owns MPI: its teardown routine may call `MPI_Finalize` internally. On leaving ranks, free the library's MPI-bound state in `finalize_func` *only* in a way that does not finalize MPI, and let `dmr_finalize()` finalize MPI for you. See [Application Structure](app-structure#who-owns-mpi_init-and-mpi_finalize) for who should own `MPI_Init`/`MPI_Finalize`.
