@@ -38,6 +38,19 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           routeBasePath: '/',
+          // Versioned docs: `docs/` holds the in-development version, and
+          // `versioned_docs/version-X` the frozen snapshots. The official
+          // release is 2.0.0, so that is what is served at the site root;
+          // 3.0.0 is still experimental and lives under /3.0.0 with a banner.
+          lastVersion: '2.0.0',
+          versions: {
+            '2.0.0': { label: '2.0.0', path: '' },
+            current: {
+              label: '3.0.0 (experimental)',
+              path: '3.0.0',
+              banner: 'unreleased',
+            },
+          },
         },
         blog: false,
         theme: {
@@ -84,6 +97,7 @@ const config = {
             label: 'References',
             position: 'left',
           },
+          { type: 'docsVersionDropdown', position: 'right' },
           { type: 'localeDropdown', position: 'right' },
           {
             href: 'https://gitlab.bsc.es/accelcom/releases/dmr/dmr',

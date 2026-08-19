@@ -1663,6 +1663,39 @@ DMR Error: Issue fetching Slurm job ID info from environment.
 
 ---
 
+## dmr_wrapper can't find the executable
+
+**Symptom:**
+```
+Error: dmr_wrapper was not able to find an executable in the provided command
+```
+
+**Cause:** `dmr_wrapper` looks for the executable by scanning the command's arguments for the first one that is either a file that exists and is executable relative to the job's current working directory, or a name resolvable via `PATH`. A relative path (e.g. `./build/my_app`) only works if that working directory is what you think it is -- Slurm jobs default to the submission directory (`$SLURM_SUBMIT_DIR`), not necessarily wherever the batch script file itself lives, especially with nested Slurm setups (Slurm4DMR) or scripts that live in a subdirectory of the project.
+
+**Fix:** use an absolute path to the executable instead of a relative one, e.g. anchored on `$SLURM_SUBMIT_DIR`.
+
+---
+
+## App starts already at full size, no reconfigs happen
+
+**Symptom:** the app runs and finishes immediately, `dmr_check` reports the target size already reached with `0 reconfig(s)` -- it never grows.
+
+**Cause:** `mpirun --host host1:1,host2:1,...` without `-np` uses every slot the hostlist offers, so the app starts at that full size right away instead of at 1 process. `dmr_wrapper` expects `-np`/`--np` to be present -- it explicitly strips it back out when rebuilding the launch command for each reconfig.
+
+**Fix:** pass `-np 1` (or whatever the intended starting size is) explicitly.
+
+---
+
+## Expand hangs forever waiting for Slurm resources
+
+**Symptom:** `dmr_check` reports `SHOULD EXPAND`, then the app hangs indefinitely, repeatedly logging `About to read expander job (ID N) state...` / `Read expander job state: 0...`.
+
+**Cause:** DMR grows by submitting its own separate "expander jobs" to Slurm to claim more nodes. If the app's own job already holds every node available in its partition/allocation (e.g. submitted with `--exclusive` over the whole cluster), there's nothing left for the expander job to land on, so it stays pending forever. `DMR_NODES_IN_EXPAND` (default `1`) matters too: if it's set higher than the number of nodes actually free, the expander job can never be satisfied either.
+
+**Fix:** leave free nodes in the allocation/partition for expander jobs to use -- don't let the app's own job request all of them -- and make sure `DMR_NODES_IN_EXPAND` doesn't exceed how many nodes are actually free to grow into.
+
+---
+
 ## cgroup.conf parse errors in slurm output
 
 **Symptom:**
@@ -2115,11 +2148,8 @@ The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box
 | `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
 | `-n, --nodes` | Number of `slurmd` nodes | `4` |
 | `--packages-file` | JSON package manifest installed after startup | `$data_dir/packages.json` if it exists |
-<<<<<<< HEAD
 | `--no-user-setup` | Skip creating/configuring the demo user, for images that already ship with the target user | `false` |
 | `-e, --env` | Env var (`KEY=VALUE`) injected into every container; repeatable | - |
-=======
->>>>>>> e3e26c6 (production reference commented because a change in th etitle in arxiv)
 
 By default, `start` looks for a package manifest at `$data_dir/packages.json` and installs it when present. The manifest can be a plain array:
 
@@ -2148,15 +2178,12 @@ Or an object with packages for all nodes and controller-only packages:
 |------|-------------|
 | `-v, --version` | Install a specific release tag instead of the latest |
 
-<<<<<<< HEAD
 ## status flags
 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output status as JSON instead of human-readable text |
 
-=======
->>>>>>> e3e26c6 (production reference commented because a change in th etitle in arxiv)
 ## enter flags
 
 | Flag | Description |
@@ -2546,7 +2573,7 @@ void cleanup(void)
 }
 ```
 
-:::warning Do not call `MPI_Finalize` (or anything that does) in `finalize_func`
+:::warning[Do not call `MPI_Finalize` (or anything that does) in `finalize_func`]
 On a leaving rank, `DMR_AUTO` calls `dmr_finalize()` right after `finalize_func`, and `dmr_finalize()` itself calls `MPI_Finalize()` and then `exit()` — your post-loop `MPI_Finalize()` is never reached on that rank. If `finalize_func` also finalizes MPI, you get a double `MPI_Finalize`, which is undefined behaviour and typically aborts the in-progress reconfiguration.
 
 This matters most when a library (e.g. a simulator) owns MPI: its teardown routine may call `MPI_Finalize` internally. On leaving ranks, free the library's MPI-bound state in `finalize_func` *only* in a way that does not finalize MPI, and let `dmr_finalize()` finalize MPI for you. See [Application Structure](app-structure#who-owns-mpi_init-and-mpi_finalize) for who should own `MPI_Init`/`MPI_Finalize`.

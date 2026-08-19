@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
         /* On a leaving rank, dmr_reconfigure() (called inside DMR_AUTO) spawns
            the new world, then DMR_AUTO runs send_state() while the intercomm
            is valid, then finalizes and exits the rank. */
-        DMR_AUTO(dmr_check(USE_POLICY), send_state(), (void)NULL, (void)NULL);
+        DMR_AUTO(dmr_check(ROUND_POLICY), send_state(), (void)NULL, (void)NULL);
         do_work(local, local_count);
     }
 

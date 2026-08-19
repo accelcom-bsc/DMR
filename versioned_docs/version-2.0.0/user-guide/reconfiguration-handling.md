@@ -48,7 +48,7 @@ There is no third "surviving" group: the spawn creates an entirely new `MPI_COMM
 DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), cleanup());
 
 // dmr_check: save state on ranks that are about to exit
-DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, cleanup());
+DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
 
 // dmr_finalize: cleanup only
 DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
@@ -107,7 +107,7 @@ This matters most when a library (e.g. a simulator) owns MPI: its teardown routi
 ## Without the macro
 
 ```c
-DMRAction action = dmr_check(USE_POLICY);
+DMRAction action = dmr_check(ROUND_POLICY);
 if (action == DMR_RECONF) {
     if (dmr_reconfigure() == DMR_REDIST_FINALIZE) {
         save();
