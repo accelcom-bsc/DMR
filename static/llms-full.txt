@@ -9,31 +9,272 @@ Source: https://iarejula-bsc.github.io/dmr_doc
 # Core API
 Source: https://iarejula-bsc.github.io/dmr_doc/api/core-api/
 
+`dmr.h` is the only header an application needs to include. It is a barrel: it pulls in the whole public API and wraps it in `extern "C"` so C++ callers can use it directly.
+
 ```c
 #include "dmr.h"
 ```
 
-## Types
+| Section | What it covers |
+|---------|----------------|
+| [Configuration](#configuration) | Compile-time defaults and their environment overrides |
+| [Status codes](#status-codes) | `DMRStatus`, returned by setters, control calls, and the analytics API |
+| [Analytics](#analytics) | Event constants, `DMRAnalytics`, metrics API |
+| [Sizing and control](#sizing-and-control) | How big the next expand/shrink is, and state queries |
+| [Policies](#policies) | `DMRPolicy`, decision helpers, `dmr_set_policy` |
+| [Lifecycle](#lifecycle) | `dmr_init` / `check` / `reconfigure` / `finalize`, `DMR_AUTO` |
+
+The built-in policies are the one exception to the single include. Their constructors sit outside the barrel, because the code behind them is optional at build time, so reaching them takes one more header. See [Policy Headers](policy-headers).
+
+---
+
+## Configuration
+
+Compile-time defaults, all settable as CMake variables of the same name. Most can also be overridden by an environment variable of the same name at launch; where a runtime setter exists it wins over both.
+
+| Macro | Default | Overridable at runtime by | Description |
+|-------|---------|---------------------------|-------------|
+| `DMR_DEBUG_LEVEL` | `0` | environment | `0` = off, `1` = rank 0 only, `2` = all ranks |
+| `DMR_PRINT_ANALYTICS` | `0` | environment | Print an analytics line at each reconfiguration |
+| `DMR_NODES_IN_EXPAND` | `1` | environment, `dmr_set_nodes_next_expand()` | Nodes added per expand |
+| `DMR_NODES_IN_SHRINK` | `1` | environment, `dmr_set_nodes_next_shrink()` | Nodes removed per shrink |
+| `DMR_PROCS_PER_NODE` | `1` | environment, `dmr_set_ppn_next_expand()` | Processes spawned per added node |
+| `DMR_DEFAULT_INHIBITOR` | `0` | environment, `dmr_set_reconf_step_inhibitor()` | Skip N of every N+1 `dmr_check` calls |
+| `DMR_BLOCKING_REQ` | `0` | compile time only | Block in `dmr_check` until resources are acquired |
+| `DMR_CHECKPOINT_RESTART` | `1` | compile time only | `0` uses `DMR_INTERCOMM` instead of checkpoint files |
+| `DMR_JOBS_CAN_SHRINK` | `1` | compile time only | Allow shrinking Slurm jobs |
+| `DMR_JOBS_CAN_GROW` | `0` | compile time only | Allow growing Slurm jobs (needs `DMR_JOBS_CAN_SHRINK=1`) |
+| `DMR_SKIP_SSH_CHECK` | `0` | compile time only | Skip the SSH health check on new nodes |
+| `DMR_SSH_CHECK_TIMEOUT` | `20` | compile time only | Seconds to wait for that health check |
+| `CUSTOM_SLURM_BIN_PREFIX` | `""` | compile time only | Where expander jobs look for `scontrol` |
+
+The remaining macros are **policy fallbacks**. DMR itself never reads them: each built-in policy resolves them in its constructor, from the environment first and from the macro otherwise.
+
+| Macro | Default | Read by |
+|-------|---------|---------|
+| `DMR_DEFAULT_POLICY_MIN` | `1` | round, CE |
+| `DMR_DEFAULT_POLICY_MAX` | `1` | round, CE |
+| `DMR_DEFAULT_POLICY_STRIDE` | `2` | round |
+| `DMR_TALP_TARGET_CE` | `0.8` | CE |
+| `DMR_TALP_SENSITIVITY` | `15` | CE |
+
+See [Configuration](../user-guide/configuration) for the full CMake and environment reference.
+
+---
+
+## Status codes
+
+```c
+typedef enum DMRStatusEnum {
+    DMR_SUCCESS = 0,
+    DMR_ERROR_STATUS,
+    DMR_ERROR_UNINITIALIZED,
+    DMR_ERROR_NOT_ROOT,
+    DMR_ERROR_ARG_NULL,
+    DMR_ERROR_BAD_ARGS,
+    DMR_ERROR_UNSUPPORTED,
+    DMR_ERROR_OUT_OF_MEM,
+} DMRStatus;
+```
+
+| Value | Meaning |
+|-------|---------|
+| `DMR_SUCCESS` | Success |
+| `DMR_ERROR_STATUS` | Unspecified failure |
+| `DMR_ERROR_UNINITIALIZED` | `dmr_init` has not been called yet |
+| `DMR_ERROR_NOT_ROOT` | Called from a rank other than 0, where only rank 0 is allowed |
+| `DMR_ERROR_ARG_NULL` | A required argument was `NULL` |
+| `DMR_ERROR_BAD_ARGS` | An argument was rejected |
+| `DMR_ERROR_UNSUPPORTED` | Not supported in the current state or build |
+| `DMR_ERROR_OUT_OF_MEM` | Out of memory |
+
+The lifecycle functions return [`DMRAction`](#dmraction) instead of a status code.
+
+---
+
+## Analytics
+
+### DMRAnalytics
+
+```c
+typedef struct {
+    double      event_time;               // Unix timestamp of the event
+    const char *function;                 // DMR function that emitted it
+    const char *event;                    // Event identifier (DMR_EVENT_* or custom)
+    int         world_size;               // MPI processes in the current MPI_COMM_WORLD
+    int         node_count;               // Nodes in the current MPI_COMM_WORLD
+    double      reconfiguration_time;     // Seconds taken by the last reconfiguration (-1 if N/A)
+    double      communication_efficiency; // Last TALP accumulated CE (-1 if N/A)
+    int         pending_nodes;            // Nodes requested but not yet secured
+} DMRAnalytics;
+```
+
+Called from a non-root rank, `dmr_get_analytics` leaves the reconfiguration-specific fields (`reconfiguration_time`, `pending_nodes`) at `-1`.
+
+### Functions
+
+```c
+DMRStatus dmr_get_analytics(DMRAnalytics *analytics);
+DMRStatus dmr_create_custom_analytics_event(char const *event, DMRAnalytics **analytics_out);
+DMRStatus dmr_destroy_custom_analytics_event(DMRAnalytics *analytics);
+DMRStatus dmr_print_analytics_from(DMRAnalytics const *analytics_in);
+```
+
+A struct returned by `dmr_create_custom_analytics_event` is a **snapshot**, not a live view, and must be released with `dmr_destroy_custom_analytics_event`. The custom event string must not collide with a reserved `DMR_EVENT_*` constant.
+
+### Event constants
+
+| Constant | When emitted |
+|----------|-------------|
+| `DMR_EVENT_NONE` | No event yet |
+| `DMR_EVENT_INIT_COMPLETE` | `dmr_init` completed |
+| `DMR_EVENT_CHECK_CALLED` | `dmr_check` was called |
+| `DMR_EVENT_STAY_CURRENT` | The configuration is left unchanged |
+| `DMR_EVENT_START_EXPAND_SLURM` | Resources requested from Slurm |
+| `DMR_EVENT_START_EXPAND_MPI` | MPI expansion started |
+| `DMR_EVENT_START_SHRINK` | Shrink triggered |
+| `DMR_EVENT_DATA_REDIST_COMPLETE` | Data redistribution finished |
+| `DMR_EVENT_TALP_CHECK_CE_ACC` | TALP CE check performed |
+| `DMR_EVENT_LAST_FINALIZE` | `dmr_finalize` called outside a reconfiguration |
+
+See [Analytics](../user-guide/analytics) for usage.
+
+---
+
+## Sizing and control
+
+How big the next reconfiguration is, plus the queries a decision needs. **Every value set here applies to the next reconfiguration only and resets afterwards.**
+
+### Sizing setters (rank 0 only)
+
+Non-root callers get `DMR_ERROR_NOT_ROOT` and change nothing.
+
+```c
+DMRStatus dmr_set_nodes_next_expand(int nodes);
+DMRStatus dmr_set_procs_next_expand(int procs);   // exact total across the new nodes
+DMRStatus dmr_set_ppn_next_expand(int ppn);       // processes per node; overrides procs
+DMRStatus dmr_set_nodes_next_shrink(int nodes);
+DMRStatus dmr_set_procs_next_shrink(int procs);
+DMRStatus dmr_set_jobs_next_shrink(int jobs);     // remove N whole expansion jobs
+```
+
+### Sizing getters (rank 0 only)
+
+Return `-1` on error, including when called from a non-root rank.
+
+```c
+int dmr_get_nodes_next_expand(void);
+int dmr_get_procs_next_expand(void);
+int dmr_get_nodes_next_shrink(void);
+int dmr_get_procs_next_shrink(void);
+```
+
+### State queries
+
+Callable from any rank.
+
+```c
+int dmr_get_current_node_count(void);   // nodes in the current MPI_COMM_WORLD
+int dmr_get_reconfig_count(void);       // reconfigurations since launch; valid even before dmr_init
+int dmr_get_active_expansions(void);    // expansion jobs currently active
+int dmr_pending_expansion(void);        // 1 if an expansion is pending
+```
+
+### Expansion control and throttling
+
+```c
+DMRStatus dmr_cancel_expansion(void);              // collective
+DMRStatus dmr_set_reconf_step_inhibitor(int steps);
+```
+
+`dmr_cancel_expansion` is **collective** and only valid while `dmr_pending_expansion()` returns `1`. The inhibitor makes DMR ignore N out of every N+1 `dmr_check` calls; it has no effect on a reconfiguration already underway.
+
+---
+
+## Policies
+
+The policy interface: a policy is an object you register once, and DMR evaluates it whenever you call `dmr_check(USE_POLICY)`.
+
+### Types
+
+```c
+typedef enum DMRPolicyOpEnum {
+    DMR_POLICY_STAY = 0,
+    DMR_POLICY_EXPAND,
+    DMR_POLICY_SHRINK
+} DMRPolicyOp;
+
+typedef struct {
+    DMRPolicyOp operation;
+    int         nodes;      // delta, positive
+    int         processes;  // 0 = let DMR size it
+} DMRPolicySuggestion;
+
+typedef struct {
+    int   current_nodes;
+    int   reconfig_count;
+    int   nodes_in_expand;
+    int   nodes_in_shrink;
+    int   procs_in_expand;
+    int   procs_in_shrink;
+    void *internal_dmr_state;
+    void *internal_controller_state;
+} DMRPolicyContext;
+
+struct DMRPolicyStruct {
+    char const         *name;
+    size_t              state_size;
+    void               *state;
+    DMRPolicyPopulateFn populate;   // optional: gather external data, all ranks
+    DMRPolicyRunFn      run;        // required: pure decision, all ranks
+    DMRPolicySaveFn     save;       // optional, never called by DMR
+    DMRPolicyLoadFn     load;       // optional, never called by DMR
+    DMRPolicyDestroyFn  destroy;    // optional, never called by DMR
+};
+```
+
+### Registration
+
+```c
+DMRStatus dmr_set_policy(DMRPolicy *policy);
+```
+
+**Collective**: all ranks must call it, in the same order, with no `dmr_check` in between. DMR does not take ownership of the pointer: keep the object alive for as long as it may be evaluated. Passing `NULL` unregisters the policy, and `dmr_check(USE_POLICY)` then resolves to `SHOULD_STAY`.
+
+### Decision helpers
+
+```c
+DMRPolicySuggestion dmr_policy_stay(void);
+DMRPolicySuggestion dmr_policy_expand_fixed(int nodes, int processes);
+DMRPolicySuggestion dmr_policy_shrink_fixed(int nodes, int processes);
+DMRPolicySuggestion dmr_policy_expand_to(int target_nodes, int processes, DMRPolicyContext const *context);
+DMRPolicySuggestion dmr_policy_shrink_to(int target_nodes, int processes, DMRPolicyContext const *context);
+```
+
+`_fixed` takes a delta, `_to` an absolute target node count. All of them degrade to `dmr_policy_stay()` when the delta would be zero or negative, or the context is `NULL`.
+
+How the two callbacks are invoked is described in [Policies Overview](../user-guide/policies/overview#how-an-evaluation-works); writing your own policy is covered in [Custom Policies](../user-guide/policies/custom-policies).
+
+---
+
+## Lifecycle
 
 ### DMRSuggestion
 
-Passed to `dmr_check` to select the reconfiguration policy.
+Passed to `dmr_check` to say how this iteration's size is decided.
 
 | Value | Description |
 |-------|-------------|
-| `ROUND_POLICY` | Multiply current node count by stride up to `max_nodes`, then wrap to `min_nodes` |
-| `LIST_POLICY` | Iterate a fixed list of node counts |
-| `CE_POLICY` | Target a communication efficiency value (requires TALP) |
-| `SLURM4DMR_ROUND_POLICY` | `ROUND_POLICY` variant for Slurm4DMR |
-| `SLURM4DMR_CE_POLICY` | `CE_POLICY` variant for Slurm4DMR |
-| `SLURM4DMR_QUEUE_POLICY` | Stay at preferred nodes, respect min/max |
-| `SHOULD_EXPAND` | Expand by `DMR_NODES_IN_EXPAND` nodes |
-| `SHOULD_SHRINK` | Shrink by `DMR_NODES_IN_SHRINK` nodes |
+| `USE_POLICY` | Evaluate the policy registered with `dmr_set_policy` |
+| `SHOULD_EXPAND` | Expand by `dmr_get_nodes_next_expand()` nodes |
+| `SHOULD_SHRINK` | Shrink by `dmr_get_nodes_next_shrink()` nodes |
 | `SHOULD_STAY` | Do not reconfigure this iteration |
+
+The per-policy enum values of 2.x (`ROUND_POLICY`, `CE_POLICY`, `SLURM4DMR_*`, …) are gone; policies are objects now. See [Policies Overview](../user-guide/policies/overview#migrating-from-2x).
 
 ### DMRAction
 
-Returned by `dmr_init`, `dmr_check`, `dmr_reconfigure`, and `dmr_finalize`.
+Returned by `dmr_init`, `dmr_check`, `dmr_reconfigure`, and `dmr_finalize`, telling the calling rank what to do next.
 
 | Value | Meaning |
 |-------|---------|
@@ -45,136 +286,32 @@ Returned by `dmr_init`, `dmr_check`, `dmr_reconfigure`, and `dmr_finalize`.
 | `DMR_CLEANUP` | Optional cleanup, rank continues |
 | `DMR_ERROR` | An error occurred |
 
-### DMRStatus
-
-Returned by setter functions and analytics calls.
-
-| Value | Meaning |
-|-------|---------|
-| `DMR_SUCCESS` | Success |
-| `DMR_ERROR_STATUS` | Unspecified failure |
-| `DMR_ERROR_UNINITIALIZED` | Library not yet initialized |
-| `DMR_ERROR_NOT_ROOT` | Must be called from rank 0 |
-| `DMR_ERROR_ARG_NULL` | A required argument was NULL |
-| `DMR_ERROR_BAD_ARGS` | An argument was rejected |
-| `DMR_ERROR_UNSUPPORTED` | Not supported in current state or build |
-| `DMR_ERROR_OUT_OF_MEM` | Out of memory |
-
-### DMRAnalytics
-
-```c
-typedef struct {
-    double      event_time;               // Unix timestamp of event
-    const char *function;                 // DMR function that emitted the event
-    const char *event;                    // Event identifier (DMR_EVENT_* constant)
-    int         world_size;               // MPI processes in current MPI_COMM_WORLD
-    int         node_count;               // Nodes in current MPI_COMM_WORLD
-    double      reconfiguration_time;     // Seconds to complete last reconfiguration (-1 if N/A)
-    double      communication_efficiency; // Last TALP accumulated CE (-1 if N/A)
-    int         pending_nodes;            // Nodes requested but not yet secured
-} DMRAnalytics;
-```
-
-## Global variable
+### DMR_INTERCOMM
 
 ```c
 extern MPI_Comm DMR_INTERCOMM;
 ```
 
-Intercommunicator connecting old and new processes during a reconfiguration. Only valid when `dmr_intercomm_available()` returns `1` and `DMR_CHECKPOINT_RESTART=0`.
+Intercommunicator connecting the old and new processes during a reconfiguration. Only touch it when a `DMRAction` told you to (`DMR_RESTART_RECONF` or `DMR_REDIST_FINALIZE`) and `dmr_intercomm_available()` returns `1`, which requires a build with `DMR_CHECKPOINT_RESTART=0`. See [Data Redistribution](../user-guide/data-redistribution).
 
-## Core functions
-
-### dmr_init
+### Functions
 
 ```c
 DMRAction dmr_init(int argc, char *argv[]);
-```
-
-Initialize DMR. Call immediately after `MPI_Init`. **Collective.**
-
-Returns `DMR_NO_ACTION` on first launch, `DMR_RESTART_RECONF` when restarting after a reconfiguration.
-
-### dmr_check
-
-```c
-DMRAction dmr_check(DMRSuggestion suggestion);
-```
-
-Evaluate the policy and act on any pending reconfiguration. Call in the main loop. **Collective.**
-
-### dmr_reconfigure
-
-```c
+DMRAction dmr_check(DMRSuggestion suggested_reconfiguration);
 DMRAction dmr_reconfigure(void);
-```
-
-Perform the reconfiguration. Call only when `dmr_check` returns `DMR_RECONF`. Handled automatically by `DMR_AUTO`.
-
-### dmr_finalize
-
-```c
 DMRAction dmr_finalize(void);
-```
-
-Shut down DMR. Call before `MPI_Finalize`. Not collective; once a rank calls it, no further DMR calls can be made from that rank.
-
-## Policy setters (collective)
-
-```c
-DMRStatus dmr_set_policy_min_nodes(int nodes);
-DMRStatus dmr_set_policy_max_nodes(int nodes);
-DMRStatus dmr_set_policy_stride(int multiplier);
-DMRStatus dmr_set_policy_pref_nodes(int nodes);
-DMRStatus dmr_set_reconf_step_inhibitor(int steps);
-```
-
-## Expand/shrink sizing (rank 0 only)
-
-```c
-DMRStatus dmr_set_nodes_next_expand(int nodes);
-DMRStatus dmr_set_procs_next_expand(int procs);
-DMRStatus dmr_set_ppn_next_expand(int ppn);
-DMRStatus dmr_set_nodes_next_shrink(int nodes);
-DMRStatus dmr_set_procs_next_shrink(int procs);
-DMRStatus dmr_set_jobs_next_shrink(int jobs);
-```
-
-Values reset after each reconfiguration.
-
-## State queries
-
-```c
-int dmr_get_current_node_count(void);
-int dmr_get_reconfig_count(void);
-int dmr_get_active_expansions(void);
-int dmr_pending_expansion(void);
-int dmr_intercomm_available(void);
-int dmr_get_nodes_next_expand(void);
-int dmr_get_procs_next_expand(void);
-int dmr_get_nodes_next_shrink(void);
-int dmr_get_procs_next_shrink(void);
+int       dmr_intercomm_available(void);
 DMRAction dmr_get_last_action(void);
 ```
 
-## Expansion control
+**`dmr_init`**: call immediately after `MPI_Init`, passing `argc`/`argv` untouched (DMR forwards them to spawned processes). **Collective.** Returns `DMR_NO_ACTION` on first launch, `DMR_RESTART_RECONF` on a process spawned by an expansion.
 
-```c
-DMRStatus dmr_cancel_expansion(void);
-```
+**`dmr_check`**: evaluate the suggestion (or the active policy, with `USE_POLICY`) and act on any pending reconfiguration. Call it once per iteration of your main loop. **Collective.**
 
-Cancels a pending expansion job. **Collective** — all ranks must call. Only valid when `dmr_pending_expansion()` returns `1`.
+**`dmr_reconfigure`**: perform the reconfiguration. Only valid after `dmr_check` or `dmr_init` returned `DMR_RECONF` or `DMR_RESTART_RECONF`. Handled for you by `DMR_AUTO`.
 
-## Analytics
-
-```c
-DMRStatus dmr_get_analytics(DMRAnalytics *analytics);
-DMRStatus dmr_create_custom_analytics_event(char const *event, DMRAnalytics **analytics_out);
-DMRStatus dmr_destroy_custom_analytics_event(DMRAnalytics *analytics);
-DMRStatus dmr_print_analytics_from(DMRAnalytics const *analytics_in);
-```
-
-## Macro
+**`dmr_finalize`**: shut DMR down. Call it before `MPI_Finalize`. Not collective, and it is a termination point: it finalizes MPI and exits the rank, so no DMR call can follow it on that rank.
 
 ### DMR_AUTO
 
@@ -182,83 +319,68 @@ DMRStatus dmr_print_analytics_from(DMRAnalytics const *analytics_in);
 DMR_AUTO(the_action, redist_func, restart_func, finalize_func)
 ```
 
-Dispatches to the correct callback based on `the_action`. See [Reconfiguration Handling](../user-guide/reconfiguration-handling) for full documentation.
+Expands to a `switch` over the returned action and calls the right callback for you, including `dmr_reconfigure()` and `dmr_finalize()`. Pass `(void)NULL` for a callback you do not need.
 
-## Analytics event constants
+```c
+DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(),   cleanup());
+DMR_AUTO(dmr_check(USE_POLICY), save(),    (void)NULL, cleanup());
+DMR_AUTO(dmr_finalize(),        (void)NULL, (void)NULL, cleanup());
+```
 
-| Constant | When emitted |
-|----------|-------------|
-| `DMR_EVENT_NONE` | No event yet |
-| `DMR_EVENT_INIT_COMPLETE` | `dmr_init` completed |
-| `DMR_EVENT_CHECK_CALLED` | `dmr_check` was called |
-| `DMR_EVENT_STAY_CURRENT` | Policy decided to stay |
-| `DMR_EVENT_START_EXPAND_SLURM` | Resources requested from Slurm |
-| `DMR_EVENT_START_EXPAND_MPI` | MPI expansion started |
-| `DMR_EVENT_START_SHRINK` | Shrink triggered |
-| `DMR_EVENT_DATA_REDIST_COMPLETE` | Data redistribution finished |
-| `DMR_EVENT_TALP_CHECK_CE_ACC` | TALP CE check performed |
-| `DMR_EVENT_LAST_FINALIZE` | `dmr_finalize` called outside reconfiguration |
+:::warning[The macro is a possible termination point]
+On a leaving rank `DMR_AUTO` calls `dmr_finalize()`, which finalizes MPI and exits. Never call `MPI_Finalize` from `finalize_func`.
+:::
+
+Full semantics in [Reconfiguration Handling](../user-guide/reconfiguration-handling).
 
 ---
 
-# Policy API
-Source: https://iarejula-bsc.github.io/dmr_doc/api/dmr-policies-h/
+# Policy Headers
+Source: https://iarejula-bsc.github.io/dmr_doc/api/policy-headers/
 
-## Selecting a policy
-
-Pass a `DMRSuggestion` value to `dmr_check`:
+`dmr_test_policies.h` and `dmr_CE_policy.h` are the only headers an application includes by name besides `dmr.h`. They stay out of the barrel because the policies behind them are optional at build time, so what they declare depends on how DMR was compiled.
 
 ```c
-#include "dmr.h"
-
-DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
+#include "dmr.h"                 /* the policy interface itself */
+#include "dmr_test_policies.h"   /* round and list constructors */
+#include "dmr_CE_policy.h"       /* CE constructor */
 ```
 
-See [DMRSuggestion](core-api#dmrsuggestion) for all available values.
+The interface these constructors return, `DMRPolicy` and friends, comes from the barrel and is documented under [Policies](core-api#policies).
 
-## Policy bounds (collective)
+## Declarations
+
+| Header | Guard | Constructors |
+|--------|-------|--------------|
+| `dmr_test_policies.h` | `DMR_WITH_TEST_POLICIES` | `DMRPolicy *dmr_get_policy_round(void);`<br/>`DMRPolicy *dmr_get_policy_list(void);` |
+| `dmr_CE_policy.h` | `DMR_WITH_CE_POLICY` | `DMRPolicy *dmr_get_policy_ce(void);` |
+
+Each declaration sits inside `#if defined(<guard>)`, so calling a constructor whose policy was not built is a compile error naming the function, not a link error at the end of the build.
+
+## Build flags
+
+The guards are set by CMake:
+
+| CMake flag | Default | Compile definition | Policies |
+|------------|---------|--------------------|----------|
+| `DMR_BUILD_TEST_POLICIES` | `ON` | `DMR_WITH_TEST_POLICIES` | round, list |
+| `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=ON` | `DMR_WITH_CE_POLICY` | ce |
+
+`DMR_BUILD_CE_POLICY=ON` requires `DMR_USE_TALP=ON`. CMake errors out if you ask for one without the other.
+
+## Behaviour common to all three
+
+Every constructor returns a pointer to a **static singleton**, so there is nothing to free and `destroy` is `NULL`. Two consequences:
+
+- Registering the same built-in twice with different parameters does not work. The second call overwrites the first one's state.
+- Parameters are re-read from the environment on **every** call, so re-registering is how you re-parameterise a built-in at runtime.
 
 ```c
-DMRStatus dmr_set_policy_min_nodes(int nodes);
-DMRStatus dmr_set_policy_max_nodes(int nodes);
-DMRStatus dmr_set_policy_stride(int multiplier);
-DMRStatus dmr_set_policy_pref_nodes(int nodes);
-DMRStatus dmr_set_reconf_step_inhibitor(int steps);
+setenv("DMR_DEFAULT_POLICY_MAX", "16", 1);
+dmr_set_policy(dmr_get_policy_round());   /* collective, picks up the new value */
 ```
 
-## Expand/shrink sizing (rank 0 only)
-
-Values apply to the next reconfiguration only and reset afterwards.
-
-```c
-DMRStatus dmr_set_nodes_next_expand(int nodes);
-DMRStatus dmr_set_procs_next_expand(int procs);
-DMRStatus dmr_set_ppn_next_expand(int ppn);
-DMRStatus dmr_set_nodes_next_shrink(int nodes);
-DMRStatus dmr_set_procs_next_shrink(int procs);
-DMRStatus dmr_set_jobs_next_shrink(int jobs);
-```
-
-## Expansion control (collective)
-
-```c
-DMRStatus dmr_cancel_expansion(void);
-```
-
-## State queries
-
-```c
-int dmr_get_current_node_count(void);
-int dmr_get_reconfig_count(void);
-int dmr_get_active_expansions(void);
-int dmr_pending_expansion(void);
-int dmr_get_nodes_next_expand(void);
-int dmr_get_procs_next_expand(void);
-int dmr_get_nodes_next_shrink(void);
-int dmr_get_procs_next_shrink(void);
-```
-
-For usage patterns see [Policies Overview](../user-guide/policies/overview) and [DMR Policies](../user-guide/policies/dmr-policies).
+What each policy decides, and which environment variables it reads, is in [Built-in Policies](../user-guide/policies/dmr-policies).
 
 ---
 
@@ -381,7 +503,7 @@ sbatch start_dmratjobs.sh
 $DMR_PATH/scripts/dmr_wrapper prterun --host "$NODELIST_WITH_COUNTS" ./hello-world
 ```
 
-This mode uses `TEST_POLICY`. It expands to a new Slurm job, shrinks back down to a single job, and then terminates.
+This mode drives the reconfiguration manually. It expands to a new Slurm job, shrinks back down to a single job, and then terminates.
 
   </TabItem>
   <TabItem value="slurm4dmr" label="Slurm4DMR">
@@ -447,7 +569,7 @@ sbatch start_slurm4dmr.sh
 $DMR_PATH/scripts/dmr_wrapper mpirun --host "$NODELIST_WITH_COUNTS" ./hello-world
 ```
 
-This mode uses `SLURM4DMR_ROUND_POLICY` and reconfigures up to `MAX_ITERS_SLURM4DMR` times.
+This mode uses a round-trip scaling policy and reconfigures up to `MAX_ITERS_SLURM4DMR` times.
 
   </TabItem>
   <TabItem value="minidmr" label="MiniDMR">
@@ -700,10 +822,14 @@ void load(void) {
 Then add DMR to your main loop:
 
 ```c
+#include "dmr_test_policies.h"
+
 DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), (void)NULL);
 
+dmr_set_policy(dmr_get_policy_round());   // pick who decides the size
+
 while (my_iteration < max_iterations) {
-    DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, (void)NULL);
+    DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, (void)NULL);
     do_work();
     my_iteration++;
 }
@@ -1525,7 +1651,7 @@ flowchart TD
     B -->|DMR_RESTART_RECONF| C["restart_func()\nrestore saved state"]:::user
     B -->|DMR_NO_ACTION| D
     C --> D(["main loop"])
-    D --> E["dmr_check(policy)"]:::dmr
+    D --> E["dmr_check(USE_POLICY)"]:::dmr
     E -->|DMR_NO_ACTION| D
     E -->|DMR_RECONF| F["dmr_reconfigure()"]:::dmr
     F -->|DMR_NO_ACTION| D
@@ -1543,6 +1669,7 @@ flowchart TD
 ```c
 #include <mpi.h>
 #include "dmr.h"
+#include "dmr_test_policies.h"
 
 static void save_checkpoint(void)  { /* persist state on disk */ }
 static void load_checkpoint(void)  { /* read data written by previous configuration */ }
@@ -1556,11 +1683,11 @@ int main(int argc, char *argv[])
        as part of an expansion; load_checkpoint() handles that case. */
     DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_checkpoint(), cleanup());
 
-    dmr_set_policy_min_nodes(2);
-    dmr_set_policy_max_nodes(8);
+    /* Bounds come from DMR_DEFAULT_POLICY_MIN/MAX in the environment. */
+    dmr_set_policy(dmr_get_policy_round());
 
     while (should_keep_running()) {
-        DMR_AUTO(dmr_check(ROUND_POLICY), save_checkpoint(), (void)NULL, cleanup());
+        DMR_AUTO(dmr_check(USE_POLICY), save_checkpoint(), (void)NULL, cleanup());
         do_work();
     }
 
@@ -1663,6 +1790,39 @@ DMR Error: Issue fetching Slurm job ID info from environment.
 
 ---
 
+## dmr_wrapper can't find the executable
+
+**Symptom:**
+```
+Error: dmr_wrapper was not able to find an executable in the provided command
+```
+
+**Cause:** `dmr_wrapper` looks for the executable by scanning the command's arguments for the first one that is either a file that exists and is executable relative to the job's current working directory, or a name resolvable via `PATH`. A relative path (e.g. `./build/my_app`) only works if that working directory is what you think it is -- Slurm jobs default to the submission directory (`$SLURM_SUBMIT_DIR`), not necessarily wherever the batch script file itself lives, especially with nested Slurm setups (Slurm4DMR) or scripts that live in a subdirectory of the project.
+
+**Fix:** use an absolute path to the executable instead of a relative one, e.g. anchored on `$SLURM_SUBMIT_DIR`.
+
+---
+
+## App starts already at full size, no reconfigs happen
+
+**Symptom:** the app runs and finishes immediately, `dmr_check` reports the target size already reached with `0 reconfig(s)` -- it never grows.
+
+**Cause:** `mpirun --host host1:1,host2:1,...` without `-np` uses every slot the hostlist offers, so the app starts at that full size right away instead of at 1 process. `dmr_wrapper` expects `-np`/`--np` to be present -- it explicitly strips it back out when rebuilding the launch command for each reconfig.
+
+**Fix:** pass `-np 1` (or whatever the intended starting size is) explicitly.
+
+---
+
+## Expand hangs forever waiting for Slurm resources
+
+**Symptom:** `dmr_check` reports `SHOULD EXPAND`, then the app hangs indefinitely, repeatedly logging `About to read expander job (ID N) state...` / `Read expander job state: 0...`.
+
+**Cause:** DMR grows by submitting its own separate "expander jobs" to Slurm to claim more nodes. If the app's own job already holds every node available in its partition/allocation (e.g. submitted with `--exclusive` over the whole cluster), there's nothing left for the expander job to land on, so it stays pending forever. `DMR_NODES_IN_EXPAND` (default `1`) matters too: if it's set higher than the number of nodes actually free, the expander job can never be satisfied either.
+
+**Fix:** leave free nodes in the allocation/partition for expander jobs to use -- don't let the app's own job request all of them -- and make sure `DMR_NODES_IN_EXPAND` doesn't exceed how many nodes are actually free to grow into.
+
+---
+
 ## cgroup.conf parse errors in slurm output
 
 **Symptom:**
@@ -1682,6 +1842,10 @@ Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/configuration/
 
 DMR can be configured at compile time (CMake), at launch time (environment variables), and at runtime (setter functions). Environment variables override CMake defaults; runtime setters override environment variables.
 
+:::note
+Policy parameters are the exception: they are resolved by each policy when it is constructed, not by DMR. See [Policies Overview](policies/overview#configuring-policies).
+:::
+
 ## CMake options
 
 ```bash
@@ -1697,7 +1861,9 @@ cmake -B build \
 | `CMAKE_INSTALL_PREFIX` | system default | Installation directory for headers and `libdmr` |
 | `SLURM4DMR` | `0` | Build for the Slurm4DMR backend (nested Slurm) instead of DMR@Jobs. Requires `SLURM4DMR_ROOT` (or `SLURM4DMR_LIB_DIR`/`SLURM4DMR_BIN_DIR`/`SLURM4DMR_INCLUDE_DIR`) |
 | `DMR_PROCS_PER_NODE` | `1` | Processes spawned per node added in an expand |
-| `DMR_USE_TALP` | `0` | Compile with DLB/TALP (enables CE policies) |
+| `DMR_USE_TALP` | `0` | Compile with DLB/TALP (required by the CE policy) |
+| `DMR_BUILD_TEST_POLICIES` | `ON` | Build the round and list policies (`dmr_test_policies.h`) |
+| `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=1` | Build the CE policy (`dmr_CE_policy.h`). Requires `DMR_USE_TALP=1` |
 | `DMR_CHECKPOINT_RESTART` | `1` | Use checkpoint-restart for reconfigurations. Set to `0` to use the intercommunicator (`DMR_INTERCOMM`) instead |
 | `DMR_JOBS_CAN_SHRINK` | `1` | Enable Slurm job shrinking |
 | `DMR_JOBS_CAN_GROW` | `0` | Enable Slurm job growing (requires `DMR_JOBS_CAN_SHRINK=1`) |
@@ -1728,25 +1894,25 @@ cmake -B build \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum node count |
-| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum node count |
-| `DMR_DEFAULT_POLICY_STRIDE` | `2` | Multiplier for `ROUND_POLICY` |
-| `DMR_DEFAULT_POLICY_PREF` | `1` | Preferred nodes for `SLURM4DMR_QUEUE_POLICY` |
+| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum node count, for the round and CE policies |
+| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum node count, for the round and CE policies |
+| `DMR_DEFAULT_POLICY_STRIDE` | `2` | Multiplier for the round policy |
 | `DMR_DEFAULT_INHIBITOR` | `0` | Skip N calls to `dmr_check` out of every N+1 |
-| `DMR_TALP_TARGET_CE` | `0.8` | Target communication efficiency for CE policies |
-| `DMR_TALP_SENSITIVITY` | `15` | Adjustment sensitivity for CE policies |
+| `DMR_TALP_TARGET_CE` | `0.8` | Target communication efficiency for the CE policy |
+| `DMR_TALP_SENSITIVITY` | `15` | Adjustment sensitivity for the CE policy |
+
+The policy variables are read by the built-in policy constructors (`dmr_get_policy_round()`, `dmr_get_policy_ce()`) each time they are called, and stored in that policy's own state. A [custom policy](policies/custom-policies) reads whatever it wants instead.
 
 ## Runtime setter functions
 
 All setters are **collective** (all ranks must call):
 
 ```c
-dmr_set_policy_min_nodes(2);
-dmr_set_policy_max_nodes(16);
-dmr_set_policy_stride(2);
-dmr_set_policy_pref_nodes(8);
+dmr_set_policy(dmr_get_policy_round());   /* select the active policy */
 dmr_set_reconf_step_inhibitor(4);
 ```
+
+There are no `dmr_set_policy_min_nodes` / `_max_nodes` / `_stride` / `_pref_nodes` setters any more: those bounds belong to the policy. Re-register a built-in after changing its environment variables, or keep the values in a [custom policy](policies/custom-policies).
 
 Expand/shrink sizing (rank 0 only, reset after each reconfiguration):
 
@@ -1944,7 +2110,7 @@ int main(int argc, char *argv[])
         /* On a leaving rank, dmr_reconfigure() (called inside DMR_AUTO) spawns
            the new world, then DMR_AUTO runs send_state() while the intercomm
            is valid, then finalizes and exits the rank. */
-        DMR_AUTO(dmr_check(ROUND_POLICY), send_state(), (void)NULL, (void)NULL);
+        DMR_AUTO(dmr_check(USE_POLICY), send_state(), (void)NULL, (void)NULL);
         do_work(local, local_count);
     }
 
@@ -2115,11 +2281,8 @@ The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box
 | `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
 | `-n, --nodes` | Number of `slurmd` nodes | `4` |
 | `--packages-file` | JSON package manifest installed after startup | `$data_dir/packages.json` if it exists |
-<<<<<<< HEAD
 | `--no-user-setup` | Skip creating/configuring the demo user, for images that already ship with the target user | `false` |
 | `-e, --env` | Env var (`KEY=VALUE`) injected into every container; repeatable | - |
-=======
->>>>>>> e3e26c6 (production reference commented because a change in th etitle in arxiv)
 
 By default, `start` looks for a package manifest at `$data_dir/packages.json` and installs it when present. The manifest can be a plain array:
 
@@ -2148,15 +2311,12 @@ Or an object with packages for all nodes and controller-only packages:
 |------|-------------|
 | `-v, --version` | Install a specific release tag instead of the latest |
 
-<<<<<<< HEAD
 ## status flags
 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output status as JSON instead of human-readable text |
 
-=======
->>>>>>> e3e26c6 (production reference commented because a change in th etitle in arxiv)
 ## enter flags
 
 | Flag | Description |
@@ -2169,10 +2329,297 @@ If stopped containers from a previous cluster are found (e.g. after a reboot), `
 
 ---
 
-# Manual Reconfiguration Control
+# Custom Policies
 Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/custom-policies/
 
-DMR does not have a custom policy plugin interface yet. Instead, you implement reconfiguration logic directly in your application code and pass `SHOULD_EXPAND`, `SHOULD_SHRINK`, or `SHOULD_STAY` to `dmr_check`.
+A policy is any `DMRPolicy` struct whose callbacks you implement. There is nothing special about the built-ins: they use the same public interface your own policy does.
+
+```c
+typedef struct DMRPolicyStruct {
+    char const         *name;        /* for debug output */
+    size_t              state_size;  /* sizeof your state struct */
+    void               *state;       /* your state, owned by you */
+    DMRPolicyPopulateFn populate;    /* optional: gather external data */
+    DMRPolicyRunFn      run;         /* required: the decision */
+    DMRPolicySaveFn     save;        /* optional: checkpoint state */
+    DMRPolicyLoadFn     load;        /* optional: restore state */
+    DMRPolicyDestroyFn  destroy;     /* optional: free your state */
+} DMRPolicy;
+```
+
+The type lives in `dmr_policy.h`, which `dmr.h` already includes.
+
+## The two callbacks
+
+```c
+int                 populate(DMRPolicy *policy, DMRPolicyContext const *context);
+DMRPolicySuggestion run(DMRPolicy *policy, DMRPolicyContext const *context);
+```
+
+- **`populate`** runs on every rank before `run`. Do the side-effecting work here: read metrics, query the cluster, call MPI collectives. Return `0` on success, negative on error (DMR logs it and continues to `run`). May be `NULL`.
+- **`run`** must be a pure function of `policy->state` and `context`. It runs on every rank and DMR never broadcasts the result, so **every rank must reach the same decision**. Do not call MPI, read the clock, or use rank-dependent data here.
+
+## Minimal example
+
+Expand one node at a time up to a maximum, then stay.
+
+```c
+#include "dmr.h"
+#include <string.h>
+
+/* State */
+
+typedef struct {
+    int max_nodes;
+} MyPolicyState;
+
+/* Callbacks */
+
+static DMRPolicySuggestion my_run(DMRPolicy *policy, DMRPolicyContext const *context)
+{
+    MyPolicyState *s = (MyPolicyState *)policy->state;
+
+    if (context->current_nodes < s->max_nodes) {
+        return dmr_policy_expand_fixed(1, 0);   /* +1 node, let DMR size the procs */
+    }
+    return dmr_policy_stay();
+}
+
+/* Container: policy object and its state, owned by the caller */
+
+typedef struct {
+    DMRPolicy     policy;
+    MyPolicyState state;
+} MyPolicy;
+
+static void create_my_policy(MyPolicy *p, int max_nodes)
+{
+    p->state  = (MyPolicyState){ .max_nodes = max_nodes };
+    p->policy = (DMRPolicy){
+        .name       = "expand_to_max",
+        .state_size = sizeof(MyPolicyState),
+        .state      = &p->state,
+        .populate   = NULL,   /* no external data needed */
+        .run        = my_run,
+        .save       = NULL,
+        .load       = NULL,
+        .destroy    = NULL    /* state is owned by the container */
+    };
+}
+
+/* Application */
+
+int main(int argc, char **argv)
+{
+    MPI_Init(&argc, &argv);
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, (void)NULL, (void)NULL);
+
+    static MyPolicy my_policy;          /* must outlive every dmr_check */
+    create_my_policy(&my_policy, 4);
+
+    dmr_set_policy(&my_policy.policy);  /* collective */
+
+    while (should_keep_running()) {
+        DMR_AUTO(dmr_check(USE_POLICY), redistribute_data(), redistribute_data(), cleanup());
+        do_work();
+    }
+
+    DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
+    MPI_Finalize();
+    return 0;
+}
+```
+
+## Decision helpers
+
+`run` returns a `DMRPolicySuggestion`:
+
+```c
+typedef enum { DMR_POLICY_STAY = 0, DMR_POLICY_EXPAND, DMR_POLICY_SHRINK } DMRPolicyOp;
+
+typedef struct {
+    DMRPolicyOp operation;
+    int         nodes;      /* delta, always positive */
+    int         processes;  /* 0 = let DMR size it */
+} DMRPolicySuggestion;
+```
+
+You can build it by hand, but `dmr_policy.h` exposes composable helpers that validate the delta for you:
+
+```c
+DMRPolicySuggestion dmr_policy_stay(void);
+DMRPolicySuggestion dmr_policy_expand_fixed(int nodes, int processes);
+DMRPolicySuggestion dmr_policy_shrink_fixed(int nodes, int processes);
+DMRPolicySuggestion dmr_policy_expand_to(int target_nodes, int processes, DMRPolicyContext const *ctx);
+DMRPolicySuggestion dmr_policy_shrink_to(int target_nodes, int processes, DMRPolicyContext const *ctx);
+```
+
+The `_fixed` helpers take a **delta** and fall back to `stay` when it is not positive. The `_to` helpers take an **absolute target** node count and compute the delta from the context, returning `stay` when the target is already reached or points the wrong way.
+
+## Using external data: the populate callback
+
+`populate` is where a policy is allowed to touch the outside world. This is the shape the built-in CE policy uses:
+
+```c
+static int my_populate(DMRPolicy *policy, DMRPolicyContext const *context)
+{
+    MyPolicyState *s = (MyPolicyState *)policy->state;
+
+    s->metrics_available = false;
+
+    double load = measure_cluster_load();   /* may be an MPI collective */
+    if (load >= 0) {
+        s->load = load;
+        s->metrics_available = true;
+    }
+    return 0;
+}
+```
+
+Store the result in your state and let `run` decide from it. Because `populate` runs on all ranks, an MPI collective here is safe; the same call inside `run` is not.
+
+Make `run` handle the "no data this iteration" case explicitly. Returning `dmr_policy_stay()` is almost always the right fallback.
+
+## DMRPolicyContext reference
+
+`DMRPolicyContext` is passed to both callbacks and is read-only.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `current_nodes` | `int` | Nodes in the current `MPI_COMM_WORLD` |
+| `reconfig_count` | `int` | Reconfigurations completed so far |
+| `nodes_in_expand` | `int` | Nodes already queued for the next expand |
+| `nodes_in_shrink` | `int` | Nodes already queued for the next shrink |
+| `procs_in_expand` | `int` | Processes already queued for the next expand |
+| `procs_in_shrink` | `int` | Processes already queued for the next shrink |
+| `internal_dmr_state` | `void *` | Opaque `DMRState` pointer, advanced use only |
+| `internal_controller_state` | `void *` | Opaque `DMRControllerState` pointer, advanced use only |
+
+The context carries no minimum or maximum node count: bounds are your policy's business, kept in its own state. If you want to follow the built-in convention, resolve them in your constructor and fall back to the `DMR_DEFAULT_POLICY_MIN` / `DMR_DEFAULT_POLICY_MAX` macros from `dmr_config.h`.
+
+## Bounds are yours to enforce
+
+DMR only rejects requests that make no sense at all (an expand that adds nothing, a shrink that removes everything). It will happily ask Slurm for 500 nodes if your `run` says so. Clamp in `run`:
+
+```c
+int target = context->current_nodes + change;
+
+if (target < s->min_nodes) target = s->min_nodes;
+if (target > s->max_nodes) target = s->max_nodes;
+
+if (target > context->current_nodes) return dmr_policy_expand_to(target, 0, context);
+if (target < context->current_nodes) return dmr_policy_shrink_to(target, 0, context);
+return dmr_policy_stay();
+```
+
+## Lifecycle and ownership
+
+- **DMR does not own the `DMRPolicy` pointer.** Keep the object alive for as long as the policy might be invoked, that is until after your last `dmr_check`. Static storage or a caller-owned allocation are the simplest options; a stack object that goes out of scope is a use-after-free.
+- **`destroy` is never called by DMR.** It exists for policies that allocate heap state; call it yourself when you are done, typically after `dmr_finalize`.
+- **`save` / `load`** are optional hooks for persisting policy state across a checkpoint-restart run. DMR does not invoke them for you.
+- **`dmr_set_policy` is collective**: all ranks in `MPI_COMM_WORLD` must call it, in the same order, with no `dmr_check` in between. Passing `NULL` unregisters the policy, and `dmr_check(USE_POLICY)` then resolves to `SHOULD_STAY`.
+- **DMR is not thread-safe**: never call `dmr_set_policy` from one thread while another is inside `dmr_check`.
+
+---
+
+# Built-in Policies
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/dmr-policies/
+
+DMR ships three built-in policies. Each one is obtained from a constructor that returns a ready-to-use `DMRPolicy *`, which you hand to `dmr_set_policy`.
+
+| Constructor | Header | Description |
+|-------------|--------|-------------|
+| `dmr_get_policy_round()` | `dmr_test_policies.h` | Multiplies the current node count by a stride, wrapping back to the minimum |
+| `dmr_get_policy_list()` | `dmr_test_policies.h` | Cycles through a fixed list of node counts |
+| `dmr_get_policy_ce()` | `dmr_CE_policy.h` | Targets a communication efficiency value, using TALP metrics |
+
+`dmr.h` does not pull these headers in: include the one you need explicitly. Each policy is also compiled in only if its CMake flag is on, `DMR_BUILD_TEST_POLICIES` for round and list, `DMR_BUILD_CE_POLICY` for CE. Both are on by default, the second one only in TALP builds. The declarations, guards, and flags are in [Policy Headers](../../api/policy-headers).
+
+## Round policy
+
+Multiplies the current node count by `stride`. When the result would exceed the maximum, it wraps back to the minimum.
+
+```c
+#include "dmr.h"
+#include "dmr_test_policies.h"
+
+dmr_set_policy(dmr_get_policy_round());
+
+while (should_keep_running()) {
+    DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, cleanup());
+    do_work();
+}
+```
+
+With `MIN=1`, `MAX=8`, `STRIDE=2` the sequence is 1 → 2 → 4 → 8 → 1 → …
+
+| Parameter | Environment variable | Default |
+|-----------|----------------------|---------|
+| Minimum nodes | `DMR_DEFAULT_POLICY_MIN` | `1` |
+| Maximum nodes | `DMR_DEFAULT_POLICY_MAX` | `1` |
+| Stride (multiplier) | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
+
+The defaults are also the compile-time fallbacks, settable as CMake variables of the same name.
+
+## List policy
+
+Cycles through the hardcoded sequence `{2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1}`, indexed by `dmr_get_reconfig_count()`. Intended for testing and benchmarking.
+
+```c
+#include "dmr.h"
+#include "dmr_test_policies.h"
+
+dmr_set_policy(dmr_get_policy_list());
+```
+
+No parameters, and no minimum or maximum: the list itself is the bound.
+
+## CE policy
+
+Reads the accumulated communication efficiency from TALP in `populate`, then in `run` adjusts the node count to push that efficiency towards a target:
+
+```
+change      = round((target_ce - current_ce) * -sensitivity)
+target_nodes = clamp(current_nodes + change, min_nodes, max_nodes)
+```
+
+Efficiency below the target means the job is spending too much time in communication, so `change` is negative and the policy shrinks; efficiency above the target lets it grow. If TALP reports no usable metrics for this iteration, the policy stays.
+
+```c
+#include "dmr.h"
+#include "dmr_CE_policy.h"
+
+dmr_set_policy(dmr_get_policy_ce());
+```
+
+| Parameter | Environment variable | Default |
+|-----------|----------------------|---------|
+| Minimum nodes | `DMR_DEFAULT_POLICY_MIN` | `1` |
+| Maximum nodes | `DMR_DEFAULT_POLICY_MAX` | `1` |
+| Target CE | `DMR_TALP_TARGET_CE` | `0.8` |
+| Sensitivity | `DMR_TALP_SENSITIVITY` | `15` |
+
+Requires a build with `DMR_USE_TALP=ON` and the job launched so that TALP is collecting metrics; see [Configuration](../configuration).
+
+## Changing parameters at runtime
+
+Every constructor reads its environment variables each time it is called, and returns the same static object, so re-registering the policy is how you re-parameterise it:
+
+```c
+setenv("DMR_DEFAULT_POLICY_MAX", "16", 1);
+dmr_set_policy(dmr_get_policy_round());   /* collective: all ranks */
+```
+
+All ranks must call `dmr_set_policy`, and they must see the same values, otherwise ranks will disagree on the suggestion. For anything more elaborate, write a [custom policy](custom-policies).
+
+---
+
+# Manual Control
+Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/manual-control/
+
+Instead of registering a policy, your application can decide reconfiguration timing itself and pass `SHOULD_EXPAND`, `SHOULD_SHRINK`, or `SHOULD_STAY` to `dmr_check`. This path does not touch the policy system at all: whatever you registered with `dmr_set_policy` is ignored for that call.
+
+Use it when the decision depends on application state that is awkward to express as a pure `run` callback: a phase change, a wall-clock deadline, an external trigger. When the logic is self-contained and deterministic, a [custom policy](custom-policies) is the better home for it.
 
 ## Basic pattern
 
@@ -2198,6 +2645,7 @@ while (should_keep_running()) {
 | `dmr_set_nodes_next_shrink(n)` | Remove `n` nodes in the next shrink |
 | `dmr_cancel_expansion()` | Cancel a pending expansion (collective) |
 
+The `dmr_set_*_next_*` setters and their getters are **rank 0 only**: from any other rank they return `DMR_ERROR_NOT_ROOT` rather than reading or writing stale data.
 ## Example: phase-driven scaling
 
 A common pattern is to scale based on the current phase of computation. Shrink before a communication-heavy phase, expand before a compute-heavy one:
@@ -2300,134 +2748,95 @@ DMR_AUTO(dmr_check(SHOULD_EXPAND), save(), (void)NULL, cleanup());
 
 ---
 
-# DMR Policies
-Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/dmr-policies/
-
-DMR ships several policies that cover the most common scaling strategies. You select one by passing the corresponding `DMRSuggestion` value to `dmr_check`. All policies respect the `DMR_DEFAULT_POLICY_MIN` and `DMR_DEFAULT_POLICY_MAX` bounds, which you can set via environment variables or the runtime setters.
-
-## ROUND_POLICY
-
-Multiplies the current node count by `stride` at each reconfiguration step. When the result would exceed `max_nodes`, it wraps back to `min_nodes`.
-
-```c
-DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
-```
-
-With `MIN=1`, `MAX=8`, `STRIDE=2`: sequence is 1 → 2 → 4 → 8 → 1 → …
-
-| Parameter | Runtime setter | Env var | CMake flag | Default |
-|-----------|---------------|---------|------------|---------|
-| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
-| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
-| Stride (multiplier) | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE` | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
-
-## LIST_POLICY
-
-Cycles through a hardcoded sequence of node counts `{2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1}`, advancing one step per reconfiguration. Designed for testing and benchmarking.
-
-```c
-DMR_AUTO(dmr_check(LIST_POLICY), save(), (void)NULL, cleanup());
-```
-
-No configuration parameters.
-
-## CE_POLICY
-
-Measures the accumulated communication efficiency via TALP and adjusts the node count to keep it near a target. Requires `DMR_USE_TALP=1` at compile time.
-
-```c
-DMR_AUTO(dmr_check(CE_POLICY), save(), (void)NULL, cleanup());
-```
-
-| Parameter | Runtime setter | Env var | CMake flag | Default |
-|-----------|---------------|---------|------------|---------|
-| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
-| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
-| Target CE | — | `DMR_TALP_TARGET_CE` | `DMR_TALP_TARGET_CE` | `0.8` |
-| Sensitivity | — | `DMR_TALP_SENSITIVITY` | `DMR_TALP_SENSITIVITY` | `15` |
-
-## Slurm4DMR policies
-
-These variants are designed for Slurm4DMR mode and require `DMR_JOBS_CAN_GROW=1`.
-
-### SLURM4DMR_ROUND_POLICY
-
-Same multiplier logic as `ROUND_POLICY` but operates within a Slurm4DMR allocation.
-
-| Parameter | Runtime setter | Env var | CMake flag | Default |
-|-----------|---------------|---------|------------|---------|
-| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
-| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
-| Stride | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE` | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
-
-### SLURM4DMR_CE_POLICY
-
-Same communication-efficiency logic as `CE_POLICY` but for Slurm4DMR. Same parameters as CE_POLICY above.
-
-### SLURM4DMR_QUEUE_POLICY
-
-Targets a preferred node count while respecting min and max, consulting cluster status from Slurm4DMR.
-
-```c
-DMR_AUTO(dmr_check(SLURM4DMR_QUEUE_POLICY), save(), (void)NULL, cleanup());
-```
-
-| Parameter | Runtime setter | Env var | CMake flag | Default |
-|-----------|---------------|---------|------------|---------|
-| Minimum nodes | `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN` | `DMR_DEFAULT_POLICY_MIN` | `1` |
-| Maximum nodes | `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX` | `DMR_DEFAULT_POLICY_MAX` | `1` |
-| Preferred nodes | `dmr_set_policy_pref_nodes(n)` | `DMR_DEFAULT_POLICY_PREF` | `DMR_DEFAULT_POLICY_PREF` | `1` |
-| Stride | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE` | `DMR_DEFAULT_POLICY_STRIDE` | `2` |
-
----
-
 # Overview
 Source: https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/overview/
 
-A **policy** tells DMR how to decide when and how to reconfigure. You select a policy by passing a `DMRSuggestion` value to `dmr_check`.
+A **policy** decides, on every iteration, whether the job should grow, shrink, or stay at its current size. In DMR a policy is a plain C object (`DMRPolicy`) that you register once with `dmr_set_policy`, and that DMR evaluates whenever you call `dmr_check(USE_POLICY)`.
+
+```c
+#include "dmr.h"
+#include "dmr_test_policies.h"
+
+dmr_set_policy(dmr_get_policy_round());   /* collective, all ranks must call */
+
+while (should_keep_running()) {
+    DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, cleanup());
+    do_work();
+}
+```
+
+:::info[Changed in 3.0.0]
+Policies used to be fixed enum values passed to `dmr_check` (`ROUND_POLICY`, `CE_POLICY`, …). They are now pluggable objects: you pass `USE_POLICY` and DMR dispatches to whatever policy you registered. See [Migrating from 2.x](#migrating-from-2x).
+:::
 
 ## DMRSuggestion values
 
 ```c
-DMRAction action = dmr_check(ROUND_POLICY);
+DMRAction action = dmr_check(USE_POLICY);
 ```
 
 | Value | Description |
 |-------|-------------|
-| `ROUND_POLICY` | Doubles node count up to `max_nodes`, then wraps back to `min_nodes` |
-| `LIST_POLICY` | Iterates through a fixed list of node counts |
-| `CE_POLICY` | Targets a communication efficiency value (requires TALP) |
-| `SLURM4DMR_ROUND_POLICY` | Like `ROUND_POLICY`, adapted for Slurm4DMR mode |
-| `SLURM4DMR_CE_POLICY` | Like `CE_POLICY`, adapted for Slurm4DMR mode |
-| `SLURM4DMR_QUEUE_POLICY` | Tries to stay at preferred nodes, respects min/max |
-| `SHOULD_EXPAND` | Manual: expand by `DMR_NODES_IN_EXPAND` nodes |
-| `SHOULD_SHRINK` | Manual: shrink by `DMR_NODES_IN_SHRINK` nodes |
+| `USE_POLICY` | Evaluate the policy registered with `dmr_set_policy` |
+| `SHOULD_EXPAND` | Manual: expand by `dmr_set_nodes_next_expand()` nodes |
+| `SHOULD_SHRINK` | Manual: shrink by `dmr_set_nodes_next_shrink()` nodes |
 | `SHOULD_STAY` | Manual: do not reconfigure this iteration |
+
+If no policy has been registered (or you passed `NULL`), `dmr_check(USE_POLICY)` always resolves to `SHOULD_STAY`.
+
+## How an evaluation works
+
+Each `dmr_check(USE_POLICY)` runs two callbacks of the active policy, in order:
+
+1. **`populate(policy, context)`** gathers the external information the policy needs (TALP metrics, cluster state, …). It runs on **every rank**, because some of that work is an MPI collective. It may be `NULL` if the policy needs no external data.
+2. **`run(policy, context)`** is the pure decision. Given the context, it returns a `DMRPolicySuggestion`: stay, expand by N nodes, or shrink by N nodes.
+
+```mermaid
+flowchart TD
+    A["dmr_check(USE_POLICY)"] --> B["populate(policy, context)<br/>all ranks, may use MPI"]
+    B --> C["run(policy, context)<br/>all ranks, pure and deterministic"]
+    C --> D["root stores the suggestion<br/>dmr_set_nodes_next_expand / _shrink"]
+    D --> E["DMR sanity-checks the request"]
+    E --> F["returns DMRAction<br/>DMR_NO_ACTION / DMR_RECONF"]
+```
+
+Every rank evaluates `run` and computes the same suggestion independently: DMR does **not** broadcast the decision, so `run` must be deterministic for a given context. Only rank 0 actually stores the result, through the root-only sizing setters. Non-root ranks learn the outcome later, through the normal intercommunicator merge once root has driven the Slurm request.
+
+## What DMR enforces, and what it does not
+
+DMR does not own any node-count limits. A minimum or maximum is **policy state**: each policy resolves it in its own constructor and applies it in `run`.
+
+What DMR checks before acting on a suggestion is only whether the request makes sense at all:
+
+| Operation | Rejected when |
+|-----------|---------------|
+| Expand | The request adds zero (or fewer) nodes, or zero (or fewer) processes |
+| Shrink | It removes nothing, a negative amount, or every node or process the job is running on |
+
+A rejected suggestion makes `dmr_check` return `DMR_NO_ACTION`. A request that is merely large is passed on to Slurm, which is the component that decides whether it can be served.
 
 ## Configuring policies
 
-Parameters can be set at three levels, in order of priority (highest first):
-
-1. **Runtime** — setter functions called before the main loop (collective, all ranks must call)
-2. **Environment variable** — set before launching with `dmr`
-3. **Compile time** — CMake flag at build time
-
-```c
-dmr_set_policy_min_nodes(2);   // DMR will not go below 2 nodes
-dmr_set_policy_max_nodes(16);  // DMR will not go above 16 nodes
-dmr_set_policy_stride(2);      // multiplier for ROUND_POLICY
-dmr_set_policy_pref_nodes(8);  // preferred count for QUEUE_POLICY
-```
+Built-in policies read their parameters from the environment **inside their constructor**, and store them in their own state:
 
 ```bash
 DMR_DEFAULT_POLICY_MIN=2 DMR_DEFAULT_POLICY_MAX=16 dmr mpirun -n 2 ./my_app
 ```
 
-Each policy's accepted parameters are listed in [DMR Policies](dmr-policies).
+Because the values are read when the constructor runs, changing a parameter at runtime means calling the constructor again before the next `dmr_check`:
+
+```c
+setenv("DMR_DEFAULT_POLICY_STRIDE", "4", 1);
+dmr_set_policy(dmr_get_policy_round());   /* picks up the new stride */
+```
+
+There are no `dmr_set_policy_*` runtime setters any more. If you want first-class parameters instead of environment variables, write a [custom policy](custom-policies) and keep them in its state.
+
+Each built-in policy's accepted parameters are listed in [Built-in Policies](dmr-policies).
 
 ## Manual control
 
-Use `SHOULD_EXPAND` or `SHOULD_SHRINK` when your application decides reconfiguration timing itself:
+Passing `SHOULD_EXPAND` or `SHOULD_SHRINK` bypasses the policy system entirely and lets the application decide reconfiguration timing itself:
 
 ```c
 if (my_app_needs_more_resources()) {
@@ -2436,15 +2845,34 @@ if (my_app_needs_more_resources()) {
 }
 ```
 
+See [Manual Control](manual-control) for the full set of sizing and cancellation calls.
+
 ## Inhibitor
 
-Throttle how often DMR attempts a reconfiguration. If the inhibitor is `N`, then `N` out of every `N+1` calls to `dmr_check` are skipped:
+Throttle how often DMR attempts a reconfiguration, regardless of what the policy suggests. If the inhibitor is `N`, then `N` out of every `N+1` calls to `dmr_check` are skipped:
 
 ```c
 dmr_set_reconf_step_inhibitor(9);  // reconfigure on every 10th call
 ```
 
 Or at compile/run time: `DMR_DEFAULT_INHIBITOR=9`.
+
+## Migrating from 2.x
+
+| 2.x | 3.0.0 |
+|-----|-------|
+| `dmr_check(ROUND_POLICY)` | `dmr_set_policy(dmr_get_policy_round())` once, then `dmr_check(USE_POLICY)` |
+| `dmr_check(LIST_POLICY)` | `dmr_set_policy(dmr_get_policy_list())`, then `dmr_check(USE_POLICY)` |
+| `dmr_check(CE_POLICY)` | `dmr_set_policy(dmr_get_policy_ce())`, then `dmr_check(USE_POLICY)` |
+| `dmr_check(SLURM4DMR_ROUND_POLICY)` | `dmr_get_policy_round()`, since the built-ins are mode-agnostic now |
+| `dmr_check(SLURM4DMR_CE_POLICY)` | `dmr_get_policy_ce()` |
+| `dmr_check(SLURM4DMR_QUEUE_POLICY)` | Removed. Implement it as a [custom policy](custom-policies) |
+| `dmr_set_policy_min_nodes(n)` | `DMR_DEFAULT_POLICY_MIN=n` in the environment, or custom policy state |
+| `dmr_set_policy_max_nodes(n)` | `DMR_DEFAULT_POLICY_MAX=n` in the environment, or custom policy state |
+| `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE=n` in the environment, or custom policy state |
+| `dmr_set_policy_pref_nodes(n)` | Removed along with `DMR_DEFAULT_POLICY_PREF` |
+
+Manual control (`SHOULD_EXPAND`, `SHOULD_SHRINK`, `SHOULD_STAY`) and every `dmr_set_*_next_*` sizing call are unchanged.
 
 ---
 
@@ -2496,7 +2924,7 @@ There is no third "surviving" group: the spawn creates an entirely new `MPI_COMM
 DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), cleanup());
 
 // dmr_check: save state on ranks that are about to exit
-DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, cleanup());
+DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, cleanup());
 
 // dmr_finalize: cleanup only
 DMR_AUTO(dmr_finalize(), (void)NULL, (void)NULL, cleanup());
@@ -2546,7 +2974,7 @@ void cleanup(void)
 }
 ```
 
-:::warning Do not call `MPI_Finalize` (or anything that does) in `finalize_func`
+:::warning[Do not call `MPI_Finalize` (or anything that does) in `finalize_func`]
 On a leaving rank, `DMR_AUTO` calls `dmr_finalize()` right after `finalize_func`, and `dmr_finalize()` itself calls `MPI_Finalize()` and then `exit()` — your post-loop `MPI_Finalize()` is never reached on that rank. If `finalize_func` also finalizes MPI, you get a double `MPI_Finalize`, which is undefined behaviour and typically aborts the in-progress reconfiguration.
 
 This matters most when a library (e.g. a simulator) owns MPI: its teardown routine may call `MPI_Finalize` internally. On leaving ranks, free the library's MPI-bound state in `finalize_func` *only* in a way that does not finalize MPI, and let `dmr_finalize()` finalize MPI for you. See [Application Structure](app-structure#who-owns-mpi_init-and-mpi_finalize) for who should own `MPI_Init`/`MPI_Finalize`.
@@ -2555,7 +2983,7 @@ This matters most when a library (e.g. a simulator) owns MPI: its teardown routi
 ## Without the macro
 
 ```c
-DMRAction action = dmr_check(ROUND_POLICY);
+DMRAction action = dmr_check(USE_POLICY);
 if (action == DMR_RECONF) {
     if (dmr_reconfigure() == DMR_REDIST_FINALIZE) {
         save();

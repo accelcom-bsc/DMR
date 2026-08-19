@@ -84,14 +84,10 @@ void load(void) {
 Then add DMR to your main loop:
 
 ```c
-#include "dmr_test_policies.h"
-
 DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), (void)NULL);
 
-dmr_set_policy(dmr_get_policy_round());   // pick who decides the size
-
 while (my_iteration < max_iterations) {
-    DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, (void)NULL);
+    DMR_AUTO(dmr_check(ROUND_POLICY), save(), (void)NULL, (void)NULL);
     do_work();
     my_iteration++;
 }

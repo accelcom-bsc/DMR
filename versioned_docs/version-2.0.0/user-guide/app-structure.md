@@ -79,7 +79,7 @@ flowchart TD
     B -->|DMR_RESTART_RECONF| C["restart_func()\nrestore saved state"]:::user
     B -->|DMR_NO_ACTION| D
     C --> D(["main loop"])
-    D --> E["dmr_check(USE_POLICY)"]:::dmr
+    D --> E["dmr_check(policy)"]:::dmr
     E -->|DMR_NO_ACTION| D
     E -->|DMR_RECONF| F["dmr_reconfigure()"]:::dmr
     F -->|DMR_NO_ACTION| D
@@ -97,7 +97,6 @@ flowchart TD
 ```c
 #include <mpi.h>
 #include "dmr.h"
-#include "dmr_test_policies.h"
 
 static void save_checkpoint(void)  { /* persist state on disk */ }
 static void load_checkpoint(void)  { /* read data written by previous configuration */ }
@@ -111,11 +110,11 @@ int main(int argc, char *argv[])
        as part of an expansion; load_checkpoint() handles that case. */
     DMR_AUTO(dmr_init(argc, argv), (void)NULL, load_checkpoint(), cleanup());
 
-    /* Bounds come from DMR_DEFAULT_POLICY_MIN/MAX in the environment. */
-    dmr_set_policy(dmr_get_policy_round());
+    dmr_set_policy_min_nodes(2);
+    dmr_set_policy_max_nodes(8);
 
     while (should_keep_running()) {
-        DMR_AUTO(dmr_check(USE_POLICY), save_checkpoint(), (void)NULL, cleanup());
+        DMR_AUTO(dmr_check(ROUND_POLICY), save_checkpoint(), (void)NULL, cleanup());
         do_work();
     }
 

@@ -79,7 +79,7 @@ sbatch start_dmratjobs.sh
 $DMR_PATH/scripts/dmr_wrapper prterun --host "$NODELIST_WITH_COUNTS" ./hello-world
 ```
 
-This mode drives the reconfiguration manually. It expands to a new Slurm job, shrinks back down to a single job, and then terminates.
+This mode uses `TEST_POLICY`. It expands to a new Slurm job, shrinks back down to a single job, and then terminates.
 
   </TabItem>
   <TabItem value="slurm4dmr" label="Slurm4DMR">
@@ -145,7 +145,7 @@ sbatch start_slurm4dmr.sh
 $DMR_PATH/scripts/dmr_wrapper mpirun --host "$NODELIST_WITH_COUNTS" ./hello-world
 ```
 
-This mode uses a round-trip scaling policy and reconfigures up to `MAX_ITERS_SLURM4DMR` times.
+This mode uses `SLURM4DMR_ROUND_POLICY` and reconfigures up to `MAX_ITERS_SLURM4DMR` times.
 
   </TabItem>
   <TabItem value="minidmr" label="MiniDMR">

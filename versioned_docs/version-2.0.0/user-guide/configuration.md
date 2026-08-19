@@ -5,10 +5,6 @@ title: Configuration
 
 DMR can be configured at compile time (CMake), at launch time (environment variables), and at runtime (setter functions). Environment variables override CMake defaults; runtime setters override environment variables.
 
-:::note
-Policy parameters are the exception: they are resolved by each policy when it is constructed, not by DMR. See [Policies Overview](policies/overview#configuring-policies).
-:::
-
 ## CMake options
 
 ```bash
@@ -24,9 +20,7 @@ cmake -B build \
 | `CMAKE_INSTALL_PREFIX` | system default | Installation directory for headers and `libdmr` |
 | `SLURM4DMR` | `0` | Build for the Slurm4DMR backend (nested Slurm) instead of DMR@Jobs. Requires `SLURM4DMR_ROOT` (or `SLURM4DMR_LIB_DIR`/`SLURM4DMR_BIN_DIR`/`SLURM4DMR_INCLUDE_DIR`) |
 | `DMR_PROCS_PER_NODE` | `1` | Processes spawned per node added in an expand |
-| `DMR_USE_TALP` | `0` | Compile with DLB/TALP (required by the CE policy) |
-| `DMR_BUILD_TEST_POLICIES` | `ON` | Build the round and list policies (`dmr_test_policies.h`) |
-| `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=1` | Build the CE policy (`dmr_CE_policy.h`). Requires `DMR_USE_TALP=1` |
+| `DMR_USE_TALP` | `0` | Compile with DLB/TALP (enables CE policies) |
 | `DMR_CHECKPOINT_RESTART` | `1` | Use checkpoint-restart for reconfigurations. Set to `0` to use the intercommunicator (`DMR_INTERCOMM`) instead |
 | `DMR_JOBS_CAN_SHRINK` | `1` | Enable Slurm job shrinking |
 | `DMR_JOBS_CAN_GROW` | `0` | Enable Slurm job growing (requires `DMR_JOBS_CAN_SHRINK=1`) |
@@ -57,25 +51,25 @@ cmake -B build \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum node count, for the round and CE policies |
-| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum node count, for the round and CE policies |
-| `DMR_DEFAULT_POLICY_STRIDE` | `2` | Multiplier for the round policy |
+| `DMR_DEFAULT_POLICY_MIN` | `1` | Minimum node count |
+| `DMR_DEFAULT_POLICY_MAX` | `1` | Maximum node count |
+| `DMR_DEFAULT_POLICY_STRIDE` | `2` | Multiplier for `ROUND_POLICY` |
+| `DMR_DEFAULT_POLICY_PREF` | `1` | Preferred nodes for `SLURM4DMR_QUEUE_POLICY` |
 | `DMR_DEFAULT_INHIBITOR` | `0` | Skip N calls to `dmr_check` out of every N+1 |
-| `DMR_TALP_TARGET_CE` | `0.8` | Target communication efficiency for the CE policy |
-| `DMR_TALP_SENSITIVITY` | `15` | Adjustment sensitivity for the CE policy |
-
-The policy variables are read by the built-in policy constructors (`dmr_get_policy_round()`, `dmr_get_policy_ce()`) each time they are called, and stored in that policy's own state. A [custom policy](policies/custom-policies) reads whatever it wants instead.
+| `DMR_TALP_TARGET_CE` | `0.8` | Target communication efficiency for CE policies |
+| `DMR_TALP_SENSITIVITY` | `15` | Adjustment sensitivity for CE policies |
 
 ## Runtime setter functions
 
 All setters are **collective** (all ranks must call):
 
 ```c
-dmr_set_policy(dmr_get_policy_round());   /* select the active policy */
+dmr_set_policy_min_nodes(2);
+dmr_set_policy_max_nodes(16);
+dmr_set_policy_stride(2);
+dmr_set_policy_pref_nodes(8);
 dmr_set_reconf_step_inhibitor(4);
 ```
-
-There are no `dmr_set_policy_min_nodes` / `_max_nodes` / `_stride` / `_pref_nodes` setters any more: those bounds belong to the policy. Re-register a built-in after changing its environment variables, or keep the values in a [custom policy](policies/custom-policies).
 
 Expand/shrink sizing (rank 0 only, reset after each reconfiguration):
 

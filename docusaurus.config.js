@@ -38,6 +38,13 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           routeBasePath: '/',
+          // Versioned docs: `docs/` holds the current (latest) version, and
+          // `versioned_docs/version-X` the frozen snapshots.
+          lastVersion: 'current',
+          versions: {
+            current: { label: '3.0.0', path: '' },
+            '2.0.0': { label: '2.0.0', path: '2.0.0' },
+          },
         },
         blog: false,
         theme: {
@@ -84,6 +91,7 @@ const config = {
             label: 'References',
             position: 'left',
           },
+          { type: 'docsVersionDropdown', position: 'right' },
           { type: 'localeDropdown', position: 'right' },
           {
             href: 'https://gitlab.bsc.es/accelcom/releases/dmr/dmr',
