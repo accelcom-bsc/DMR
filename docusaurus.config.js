@@ -38,12 +38,18 @@ const config = {
         docs: {
           sidebarPath: './sidebars.js',
           routeBasePath: '/',
-          // Versioned docs: `docs/` holds the current (latest) version, and
-          // `versioned_docs/version-X` the frozen snapshots.
-          lastVersion: 'current',
+          // Versioned docs: `docs/` holds the in-development version, and
+          // `versioned_docs/version-X` the frozen snapshots. The official
+          // release is 2.0.0, so that is what is served at the site root;
+          // 3.0.0 is still experimental and lives under /3.0.0 with a banner.
+          lastVersion: '2.0.0',
           versions: {
-            current: { label: '3.0.0', path: '' },
-            '2.0.0': { label: '2.0.0', path: '2.0.0' },
+            '2.0.0': { label: '2.0.0', path: '' },
+            current: {
+              label: '3.0.0 (experimental)',
+              path: '3.0.0',
+              banner: 'unreleased',
+            },
           },
         },
         blog: false,

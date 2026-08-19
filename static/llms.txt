@@ -6,7 +6,7 @@ Source: https://iarejula-bsc.github.io/dmr_doc
 ## Pages
 
 - [Core API](https://iarejula-bsc.github.io/dmr_doc/api/core-api/)
-- [Policy Headers](https://iarejula-bsc.github.io/dmr_doc/api/policy-headers/)
+- [Policy API](https://iarejula-bsc.github.io/dmr_doc/api/dmr-policies-h/)
 - [Distributed Dataset](https://iarejula-bsc.github.io/dmr_doc/examples/distributed-dataset/)
 - [Hello World](https://iarejula-bsc.github.io/dmr_doc/examples/hello-world/)
 - [Building and Running](https://iarejula-bsc.github.io/dmr_doc/getting-started/building-and-running/)
@@ -21,9 +21,8 @@ Source: https://iarejula-bsc.github.io/dmr_doc
 - [Configuration](https://iarejula-bsc.github.io/dmr_doc/user-guide/configuration/)
 - [Data Redistribution](https://iarejula-bsc.github.io/dmr_doc/user-guide/data-redistribution/)
 - [MiniDMR Local Cluster](https://iarejula-bsc.github.io/dmr_doc/user-guide/minidmr/)
-- [Custom Policies](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/custom-policies/)
-- [Built-in Policies](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/dmr-policies/)
-- [Manual Control](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/manual-control/)
+- [Manual Reconfiguration Control](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/custom-policies/)
+- [DMR Policies](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/dmr-policies/)
 - [Overview](https://iarejula-bsc.github.io/dmr_doc/user-guide/policies/overview/)
 - [Reconfiguration Handling](https://iarejula-bsc.github.io/dmr_doc/user-guide/reconfiguration-handling/)
 

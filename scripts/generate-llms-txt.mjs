@@ -5,7 +5,10 @@
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
 
-const DOCS_DIR = new URL('../docs', import.meta.url).pathname;
+// The released version, which is what the site serves at its root URLs.
+// `docs/` holds the in-development version instead, so generating from it
+// would pair unreleased text with the released URLs below.
+const DOCS_DIR = new URL('../versioned_docs/version-2.0.0', import.meta.url).pathname;
 const OUT_FILE = new URL('../static/llms.txt', import.meta.url).pathname;
 const FULL_FILE = new URL('../static/llms-full.txt', import.meta.url).pathname;
 const SITE_URL = 'https://iarejula-bsc.github.io/dmr_doc';
