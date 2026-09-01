@@ -267,7 +267,7 @@ Source: https://iarejula-bsc.github.io/dmr_doc/examples/distributed-dataset/
 
 Shows how to manage a distributed dataset across dynamic reconfigurations.
 
-Source: `examples/distributed-dataset-sleep/` in the DMR repository.
+Source: the [`distributed-dataset-sleep`](https://gitlab.bsc.es/accelcom/releases/dmr/examples/distributed-dataset-sleep) example repository.
 
 ## What it does
 
@@ -310,7 +310,7 @@ import TabItem from '@theme/TabItem';
 
 A minimal DMR application that shows how DMR reconfigurations work without transferring application data.
 
-Source: the `hello-world` example repository.
+Source: the [`hello-world`](https://gitlab.bsc.es/accelcom/releases/dmr/examples/hello-world) example repository.
 
 ## What it does
 
