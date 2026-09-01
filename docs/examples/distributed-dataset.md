@@ -3,37 +3,166 @@ sidebar_position: 2
 title: Distributed Dataset
 ---
 
-Shows how to manage a distributed dataset across dynamic reconfigurations.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-Source: `examples/distributed-dataset-sleep/` in the DMR repository.
+An example DMR application that keeps a distributed dataset consistent across reconfigurations, driven by the built-in round policy.
+
+Source: the `distributed-dataset-sleep` example repository.
 
 ## What it does
 
-1. Each process owns a contiguous slice of a global integer array.
-2. On expand, data is redistributed to include the new processes.
-3. On shrink, leaving processes send their data to survivors before exiting.
-4. Each iteration sleeps to simulate work.
+1. Initialises MPI and DMR, splitting a dataset of `SIZE` elements evenly (plus a remainder) across ranks.
+2. Registers restart, checkpoint, and finalize hooks through `DMR_AUTO`.
+3. Registers the built-in round policy and requests reconfiguration with `USE_POLICY` at each iteration.
+4. Redistributes the dataset on every reconfiguration and validates that it still holds the expected values.
+5. Sleeps between iterations for a duration inversely proportional to the world size, to simulate work that speeds up with more resources.
+6. Stops after the configured number of timesteps.
+
+The same source can be compiled and launched for DMR@Jobs or MiniDMR.
 
 ## Data redistribution
 
-```
-Before expand (2 ranks):   rank 0: [0,1,2,3]   rank 1: [4,5,6,7]
-After expand  (4 ranks):   rank 0: [0,1]   rank 1: [2,3]   rank 2: [4,5]   rank 3: [6,7]
-```
+By default (`IN_MEMORY` set to `false`), `checkpoint`/`restart` use MPI-IO: each rank writes/reads its slice of the dataset to a shared file (`sleepof-checkpoint-file`) using `MPI_File_write_all`/`MPI_File_read_all` on a subarray view.
 
-Uses `MPI_Scatterv` (expand) and `MPI_Gatherv` + `MPI_Scatterv` (shrink).
+Setting `IN_MEMORY` to `true` at the top of `sleepOf.c` switches to `data_send`/`data_receive`, which exchange the dataset directly between old and new processes over `DMR_INTERCOMM` using `MPI_Alltoallv`. This requires DMR to be built with `DMR_CHECKPOINT_RESTART=0`; `dmr_intercomm_available()` is checked before use and the program aborts with a clear message if it is not.
 
-## Running it
+## Prerequisites
+
+Clone or enter the example repository, and check out the `v3` branch:
 
 ```bash
-cd examples/distributed-dataset-sleep
-cmake -B build && cmake --build build
+cd distributed-dataset-sleep
+git switch v3
+```
 
-DMR_DEFAULT_POLICY_MIN=1 DMR_DEFAULT_POLICY_MAX=8 DMR_DEFAULT_POLICY_STRIDE=2 \
-dmr mpirun -n 1 ./distributed-dataset-sleep --array-size 64 --iterations 20
+The Makefile expects `DMR_PATH` to point to the DMR installation.
+
+## Choose an execution mode
+
+<Tabs groupId="distributed-dataset-mode">
+  <TabItem value="dmrjobs" label="DMR@Jobs">
+
+DMR@Jobs uses the system Slurm instance. On MN5, use the pre-built DMR module:
+
+```bash
+module load dmr
+```
+
+Check that the module exported `DMR_PATH`:
+
+```bash
+echo "$DMR_PATH"
+```
+
+Compile:
+
+```bash
+make clean
+make
+```
+
+Configure the MN5 batch script (`start_dmratjobs.sh`):
+
+```bash
+#SBATCH --time=00:30:00
+#SBATCH --exclusive
+#SBATCH -N1
+#SBATCH --qos=gp_bsccs
+#SBATCH -A bsc85
+
+export DMR_PROCS_PER_NODE=2
+export DMR_DEFAULT_POLICY_MIN=1
+export DMR_DEFAULT_POLICY_MAX=4
+```
+
+Run:
+
+```bash
+sbatch start_dmratjobs.sh
+```
+
+`start_dmratjobs.sh` builds the PRRTE host list from the Slurm allocation and launches:
+
+```bash
+$DMR_PATH/scripts/dmr_wrapper prterun --host "$NODELIST_WITH_COUNTS" ./sleepOf 16 4
+```
+
+The two trailing arguments are `STEPTIME` (seconds, divided by the current world size at each step) and `TIMESTEPS` (must be even).
+
+  </TabItem>
+  <TabItem value="minidmr" label="MiniDMR">
+
+MiniDMR runs DMR in a local Docker-based Slurm cluster. Use it when you want to reproduce the example without an MN5 allocation.
+
+Start a local cluster from the host. `start_minidmr.sh` requests 8 nodes so the example can expand up to `DMR_DEFAULT_POLICY_MAX=8`:
+
+```bash
+minidmr start --nodes 8 -i registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-3.0.0
+```
+
+Enter the MiniDMR controller from the example directory:
+
+```bash
+cd distributed-dataset-sleep
+minidmr enter
+```
+
+Compile:
+
+```bash
+make
+```
+
+Run:
+
+```bash
+sbatch --wait start_minidmr.sh
+```
+
+`start_minidmr.sh` launches `./sleepOf 8 100` (`STEPTIME=8`, `TIMESTEPS=100`) with `DMR_PROCS_PER_NODE=2`. The job writes to `slurm-<jobid>.out`.
+
+When you are finished, stop the local cluster:
+
+```bash
+exit
+minidmr stop
+```
+
+  </TabItem>
+</Tabs>
+
+The output should show rank 0 reporting each step, the dataset being validated after every reconfiguration, ranks checkpointing before they leave, and restarted ranks rejoining the new allocation. With `DMR_PROCS_PER_NODE=2` and `DMR_DEFAULT_POLICY_MIN=1`/`MAX=8`, a MiniDMR run starting on all 8 allocated nodes (16 processes) cycles through 16 &rarr; 2 &rarr; 4 &rarr; 8 &rarr; 16 processes as the round policy wraps back to the minimum on overflow:
+
+```text
++ /usr/local/bin/dmr_wrapper mpirun --host mc-slurmd-1:2,...,mc-slurmd-8:2 ./sleepOf 8 100
+Validated the distributed dataset.
+[1/16] COMPUTE: sleepOf.c(main,460) - Step 1 doing a sleep of 0.50 seconds (bytes per rank 512)
+Checkpointing using MPI-IO functionality
+Restarting using MPI-IO functionality
+Validated the distributed dataset.
+[1/2] COMPUTE: sleepOf.c(main,460) - Step 2 doing a sleep of 4.00 seconds (bytes per rank 4096)
+[1/2] Still waiting for resources to expand
+Checkpointing using MPI-IO functionality
+Restarting using MPI-IO functionality
+Validated the distributed dataset.
+[1/4] COMPUTE: sleepOf.c(main,460) - Step 3 doing a sleep of 2.00 seconds (bytes per rank 2048)
+[1/4] Still waiting for resources to expand
+Checkpointing using MPI-IO functionality
+Restarting using MPI-IO functionality
+Validated the distributed dataset.
+[1/8] COMPUTE: sleepOf.c(main,460) - Step 4 doing a sleep of 1.00 seconds (bytes per rank 1024)
+[1/8] Still waiting for resources to expand
+Checkpointing using MPI-IO functionality
+Restarting using MPI-IO functionality
+Validated the distributed dataset.
+[1/16] COMPUTE: sleepOf.c(main,460) - Step 5 doing a sleep of 0.50 seconds (bytes per rank 512)
+...
 ```
 
 ## Key points
 
-- `on_exit` **must** send the local slice to a surviving rank before returning; otherwise data is lost.
-- After a reconfiguration, recompute local slice bounds from the new `MPI_Comm_size`.
+- Reconfiguration bounds and stride for the round policy come from `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX` and `DMR_DEFAULT_POLICY_STRIDE`, read when `dmr_set_policy(dmr_get_policy_round())` registers the policy; they are not set in the source. See [Built-in Policies](../user-guide/policies/dmr-policies).
+- `checkpoint`/`restart` **must** account for every element of the dataset; `validate_data` asserts on any mismatch, so a redistribution bug fails fast instead of silently corrupting data.
+- Because processes restart from the beginning of `main` on every reconfiguration (even in `IN_MEMORY` mode), progress is tracked via `dmr_get_reconfig_count()` rather than a local loop counter.
+- `SIZE` must be divisible by the initial world size; this is only checked on the very first launch (`dmr_get_reconfig_count() == 0`).
