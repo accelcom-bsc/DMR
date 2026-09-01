@@ -5,7 +5,7 @@ title: Distributed Dataset
 
 Shows how to manage a distributed dataset across dynamic reconfigurations.
 
-Source: `examples/distributed-dataset-sleep/` in the DMR repository.
+Source: the [`distributed-dataset-sleep`](https://gitlab.bsc.es/accelcom/releases/dmr/examples/distributed-dataset-sleep) example repository.
 
 ## What it does
 

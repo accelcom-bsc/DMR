@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 Una aplicación mínima de DMR que muestra cómo funcionan las reconfiguraciones sin transferir datos de la aplicación.
 
-Fuente: el repositorio del ejemplo `hello-world`.
+Fuente: el repositorio del ejemplo [`hello-world`](https://gitlab.bsc.es/accelcom/releases/dmr/examples/hello-world).
 
 ## Qué hace
 

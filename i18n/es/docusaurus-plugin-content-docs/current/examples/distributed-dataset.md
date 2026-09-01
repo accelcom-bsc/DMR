@@ -5,7 +5,7 @@ title: Conjunto de datos distribuido
 
 Muestra cómo gestionar un conjunto de datos distribuido a través de reconfiguraciones dinámicas.
 
-Fuente: `examples/distributed-dataset-sleep/` en el repositorio de DMR.
+Fuente: el repositorio del ejemplo [`distributed-dataset-sleep`](https://gitlab.bsc.es/accelcom/releases/dmr/examples/distributed-dataset-sleep).
 
 ## Qué hace
 

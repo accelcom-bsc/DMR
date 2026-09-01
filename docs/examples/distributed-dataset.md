@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 An example DMR application that keeps a distributed dataset consistent across reconfigurations, driven by the built-in round policy.
 
-Source: the `distributed-dataset-sleep` example repository.
+Source: the [`distributed-dataset-sleep`](https://gitlab.bsc.es/accelcom/releases/dmr/examples/distributed-dataset-sleep) example repository.
 
 ## What it does
 
