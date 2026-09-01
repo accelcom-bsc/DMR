@@ -159,7 +159,7 @@ MiniDMR is not an MN5 execution mode. It is a local Slurm4DMR test environment.
 Start a local cluster from the host. `start_minidmr.sh` requests 4 nodes and the example can expand to 8, so start MiniDMR with 8 workers:
 
 ```bash
-minidmr start --nodes 8
+minidmr start --nodes 8 -i registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-3.0.0
 ```
 
 Enter the MiniDMR controller from the example directory:
@@ -172,7 +172,7 @@ minidmr enter
 Compile:
 
 ```bash
-make helloSlurm
+make
 ```
 
 Run:
