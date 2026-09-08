@@ -24,9 +24,20 @@ const features = [
 
 const news = [
   {
-    date: 'June 2026',
-    title: 'Accepted paper at PPAM 2026',
+    date: 'September 2026',
+    title: 'Published paper in FGCS',
+    description: 'Entitled: "A test taxonomy and continuous integration ecosystem for dynamic resource management in HPC: https://doi.org/10.1016/j.future.2026.108767".',
+  },
+  {
+    date: 'August 2026',
+    title: 'Presented paper at PPAM 2026',
     description: 'Entitled: "Malleable Molecular Dynamics Simulations with GROMACS and DMR".',
+  },
+  {
+    date: 'August 2026',
+    title: 'Presented tutorial at PPAM 2026',
+    description: 'Entitled: "Dynamic Resource Management for HPC".',
+    link: 'https://ppam.edu.pl/tutorials#tutorials',
   },
   {
     date: 'June 2026',
@@ -40,12 +51,7 @@ const news = [
     description: 'Presenting: "Dynamic Resource Management in Quantum Circuit Simulations".',
     link: 'https://hpckp.org/annual-meeting/agenda/annual-meeting/dynamic-resource-management-in-quantum-circuit-simulations/',
   },
-  {
-    date: 'May 2026',
-    title: 'Accepted tutorial at PPAM 2026',
-    description: 'Entitled: "Dynamic Resource Management for HPC".',
-    link: 'https://ppam.edu.pl/tutorials#tutorials',
-  },
+
 ];
 
 export default function Home() {

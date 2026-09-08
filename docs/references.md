@@ -34,7 +34,10 @@ When using DMR, please, cite, at least, this work:
 - P. Sandås et al., "Dynamic Resource Management in Production HPC Clusters." *arXiv*, June 2026. https://doi.org/10.48550/arXiv.2606.13266
 */}
 
+
 ### Runtimes
+
+- P. Sandås et al., "A test taxonomy and continuous integration ecosystem for dynamic resource management in HPC." Future Generation Computer Systems, pp. 108767, Jan. 2026. ISSN: 0167-739X. https://doi.org/10.1016/j.future.2026.108767
 
 - S. Iserte et al., "Resource optimization with MPI process malleability for dynamic workloads in HPC clusters." *Future Generation Computer Systems*, Jan. 2026. https://doi.org/10.1016/j.future.2025.107949
 

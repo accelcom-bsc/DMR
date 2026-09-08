@@ -102,6 +102,13 @@ Dynamic resource management has been studied for years, but many approaches depe
 
 This matters because production clusters are shared, busy, and heterogeneous. In that setting, DMR can help applications use resources more efficiently, reduce wasted node-hours, and adapt to runtime conditions without requiring users or administrators to redesign the entire platform.
 
+## Impact
+
+- 16 peer-reviewed publications, including Q1 journals and a Best Paper Award at PPAM 2024. See the full list in [references](../references).
+- 400+ Google Scholar citations.
+- Integration into European and national projects, including EuroHPC PILOT and BZL.
+- Adoption supported by collaborations with JSC, TUM, EPCC, KTH, UniZar, CINECA, E4, PCZ, IRIT, and others.
+
 ## Who should read this
 
 This page is for:
