@@ -97,21 +97,41 @@ if (action == DMR_RECONF) {
 }
 ```
 
-## Alternative: in-memory transfer via DMR_INTERCOMM
+## In-memory transfer via DMR_INTERCOMM
 
-With `DMR_CHECKPOINT_RESTART=0` (set at compile time), DMR does not restart the process — instead it uses an intercommunicator (`DMR_INTERCOMM`) to transfer data directly between old and new ranks without writing to disk.
+With `DMR_CHECKPOINT_RESTART=0` (set when DMR is built), the state travels over an intercommunicator (`DMR_INTERCOMM`) instead of through files. The processes are relaunched exactly as in checkpoint-restart mode — that does not change — but the outgoing and incoming worlds coexist briefly and exchange data directly.
+
+The mapping is the part to get right. A rank of the incoming world generally overlaps several ranks of the outgoing one, so a fixed `dest_rank` only works when the counts divide evenly:
 
 ```c
-// redist_func: send data to new ranks via DMR_INTERCOMM
+// redist_func: send each incoming rank the part of my block it now owns
 void send_data(void) {
-    MPI_Send(my_array, local_n, MPI_DOUBLE, dest_rank, 0, DMR_INTERCOMM);
+    int new_size;
+    MPI_Comm_remote_size(DMR_INTERCOMM, &new_size);
+    for (int dst = 0; dst < new_size; dst++) {
+        int d0, d1;
+        block_of(dst, new_size, &d0, &d1);      // same function on both sides
+        int lo = max(my_start, d0), hi = min(my_end, d1);
+        if (hi >= lo)
+            MPI_Send(&local[lo - my_start], hi - lo + 1, MPI_DOUBLE, dst, 0, DMR_INTERCOMM);
+    }
 }
 
-// restart_func: receive data from old ranks via DMR_INTERCOMM
+// restart_func: mirror image, over the ranks of the outgoing world
 void recv_data(void) {
-    MPI_Recv(my_array, local_n, MPI_DOUBLE, src_rank, 0, DMR_INTERCOMM, MPI_STATUS_IGNORE);
+    int old_size;
+    MPI_Comm_remote_size(DMR_INTERCOMM, &old_size);
+    for (int src = 0; src < old_size; src++) {
+        int s0, s1;
+        block_of(src, old_size, &s0, &s1);
+        int lo = max(my_start, s0), hi = min(my_end, s1);
+        if (hi >= lo)
+            MPI_Recv(&local[lo - my_start], hi - lo + 1, MPI_DOUBLE, src, 0, DMR_INTERCOMM, MPI_STATUS_IGNORE);
+    }
 }
 ```
 
-Use this mode when checkpoint I/O latency is prohibitive and in-memory transfer is feasible.
+`block_of` must reproduce the application's own partitioning, rounding included: each side derives the other's blocks from it without communicating, so any disagreement loses or duplicates data silently.
+
+Use this mode when checkpoint I/O latency is prohibitive, or when there is no existing checkpointing to reuse.
 See [Data Redistribution](https://iarejula-bsc.github.io/dmr_doc/user-guide/data-redistribution) for redistribution patterns across a rank count change.
