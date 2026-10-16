@@ -34,21 +34,27 @@ DMRPolicySuggestion run(DMRPolicy *policy, DMRPolicyContext const *context);
 
 Expand one node at a time up to a maximum, then stay.
 
+A custom policy is two pieces:
+
+1. **Your state struct** (`MyPolicyState`): any data `run` needs to decide. DMR never reads it.
+2. **A `DMRPolicy`** (`my_policy`): the object you register. It points at your state through `.state` and at your callbacks.
+
+When DMR calls `run`, it passes back the `DMRPolicy` you registered, so your state is reachable as `policy->state`.
+
+The state of this policy is a single bound that never changes, so the constructor fills it once and there is nothing to gather before each decision: `populate` is `NULL`. A policy whose state depends on the running application (metrics, cluster load) fills it in `populate` instead; see [the populate callback](#using-external-data-the-populate-callback).
+
 ```c
 #include "dmr.h"
-#include <string.h>
 
-/* State */
-
+/* 1. State */
 typedef struct {
     int max_nodes;
 } MyPolicyState;
 
-/* Callbacks */
-
+/* 2. Decision */
 static DMRPolicySuggestion my_run(DMRPolicy *policy, DMRPolicyContext const *context)
 {
-    MyPolicyState *s = (MyPolicyState *)policy->state;
+    MyPolicyState *s = policy->state;
 
     if (context->current_nodes < s->max_nodes) {
         return dmr_policy_expand_fixed(1, 0);   /* +1 node, let DMR size the procs */
@@ -56,42 +62,36 @@ static DMRPolicySuggestion my_run(DMRPolicy *policy, DMRPolicyContext const *con
     return dmr_policy_stay();
 }
 
-/* Container: policy object and its state, owned by the caller */
+/* 3. Policy object and its state. Static: they must outlive every dmr_check. */
+static MyPolicyState my_policy_state;
 
-typedef struct {
-    DMRPolicy     policy;
-    MyPolicyState state;
-} MyPolicy;
+static DMRPolicy my_policy = {
+    .name       = "expand_to_max",
+    .state_size = sizeof(MyPolicyState),
+    .state      = &my_policy_state,
+    .populate   = NULL,   /* state is fully set by the constructor */
+    .run        = my_run,
+    .save       = NULL,
+    .load       = NULL,
+    .destroy    = NULL    /* state is static, nothing to free */
+};
 
-static void create_my_policy(MyPolicy *p, int max_nodes)
+/* 4. Constructor: initializes the state and returns the policy to register */
+static DMRPolicy *create_my_policy(int max_nodes)
 {
-    p->state  = (MyPolicyState){ .max_nodes = max_nodes };
-    p->policy = (DMRPolicy){
-        .name       = "expand_to_max",
-        .state_size = sizeof(MyPolicyState),
-        .state      = &p->state,
-        .populate   = NULL,   /* no external data needed */
-        .run        = my_run,
-        .save       = NULL,
-        .load       = NULL,
-        .destroy    = NULL    /* state is owned by the container */
-    };
+    my_policy_state = (MyPolicyState){ .max_nodes = max_nodes };
+    return &my_policy;
 }
-
-/* Application */
 
 int main(int argc, char **argv)
 {
     MPI_Init(&argc, &argv);
-    DMR_AUTO(dmr_init(argc, argv), (void)NULL, (void)NULL, (void)NULL);
+    DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), cleanup());
 
-    static MyPolicy my_policy;          /* must outlive every dmr_check */
-    create_my_policy(&my_policy, 4);
-
-    dmr_set_policy(&my_policy.policy);  /* collective */
+    dmr_set_policy(create_my_policy(4));  /* collective */
 
     while (should_keep_running()) {
-        DMR_AUTO(dmr_check(USE_POLICY), redistribute_data(), redistribute_data(), cleanup());
+        DMR_AUTO(dmr_check(USE_POLICY), save(), (void)NULL, cleanup());
         do_work();
     }
 
@@ -100,6 +100,10 @@ int main(int argc, char **argv)
     return 0;
 }
 ```
+
+`load`, `save`, `cleanup`, `should_keep_running` and `do_work` are your application's functions; see [Reconfiguration Handling](../reconfiguration-handling.md) for what each `DMR_AUTO` slot does.
+
+`state_size` is not used by DMR. It lets your callbacks check that `policy->state` really is the struct they expect; the built-in policies return `dmr_policy_stay()` when `policy->state_size != sizeof(their state)`.
 
 ## Decision helpers
 
@@ -132,9 +136,14 @@ The `_fixed` helpers take a **delta** and fall back to `stay` when it is not pos
 `populate` is where a policy is allowed to touch the outside world. This is the shape the built-in CE policy uses:
 
 ```c
-static int my_populate(DMRPolicy *policy, DMRPolicyContext const *context)
+typedef struct {
+    double load;
+    bool   metrics_available;
+} LoadPolicyState;
+
+static int load_populate(DMRPolicy *policy, DMRPolicyContext const *context)
 {
-    MyPolicyState *s = (MyPolicyState *)policy->state;
+    LoadPolicyState *s = policy->state;
 
     s->metrics_available = false;
 
