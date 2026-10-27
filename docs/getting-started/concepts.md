@@ -97,7 +97,7 @@ while (my_iteration < max_iterations) {
 }
 ```
 
-**If you do not have checkpoint-restart**, you need to implement save and load from scratch. The key question is whether saving your state to disk at each potential reconfiguration point is affordable. If it is, proceed. If the state is too large or the I/O cost is too high, consider the [intercommunicator mode](../user-guide/data-redistribution#intercommunicator) instead.
+**If you do not have checkpoint-restart**, you need to implement save and load from scratch. The key question is whether saving your state to disk at each potential reconfiguration point is affordable. If it is, proceed. If the state is too large or the I/O cost is too high, send it over the [intercommunicator](../user-guide/data-redistribution#spawn-intercommunicator) instead, which the default spawn mechanism provides.
 
 For a full explanation of the lifecycle and the `DMR_AUTO` macro see [Application Structure](../user-guide/app-structure).
 

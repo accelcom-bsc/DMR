@@ -9,7 +9,7 @@ A DMR application is built around three lifecycle functions and a main loop. The
 
 This is the most important thing to understand before writing a DMR application.
 
-When a reconfiguration happens, the current processes exit and the **wrapper relaunches the executable from the beginning** with the new process count. This means `main()` is called again from scratch, all local variables are reset.
+When a reconfiguration happens, a new set of processes **starts the executable from the beginning** with the new process count, and the current processes exit. This means `main()` is called again from scratch, all local variables are reset. This holds for both [mechanisms](#reconfiguration-mechanisms).
 
 If your application has a loop that tracks progress with a local variable, that variable will always be zero on restart:
 
@@ -145,16 +145,16 @@ Called automatically by `DMR_AUTO` when `DMR_RECONF` is returned. Do not call it
 
 Call `dmr_finalize` before `MPI_Finalize`. It is not collective, but once a rank calls it no further DMR calls can be made from that rank.
 
-## Communicator and checkpoint-restart
+## Reconfiguration mechanisms
 
-DMR supports two redistribution strategies, selected at compile time:
+DMR reconfigures with one of two mechanisms, selected when DMR is built with the `DMR_MECHANISM` CMake option:
 
-| Strategy | `DMR_CHECKPOINT_RESTART` | How it works |
-|----------|--------------------------|--------------|
-| **Checkpoint-restart** (default) | `1` | Old processes save state to disk and exit; new processes start from the beginning of the executable and restore state via `restart_func` |
-| **Intercommunicator** | `0` | Old and new processes are alive simultaneously; they exchange data directly via `DMR_INTERCOMM`, then the old ones exit. New processes also start from the beginning of the executable. |
+| Mechanism | `DMR_MECHANISM` | How it works |
+|-----------|-----------------|--------------|
+| **Spawn** (default) | `spawn` | The old processes spawn the new ones with `MPI_Comm_spawn_multiple`. Both are alive at the same time and exchange data over `DMR_INTERCOMM`, then the old ones exit. |
+| **Checkpoint-restart** | `cr` | The old processes save state to disk and exit. The wrapper relaunches the executable at the new size, and the new processes restore state in `restart_func`. |
 
-See [Data Redistribution](data-redistribution) for a detailed explanation of the `DMR_CHECKPOINT_RESTART=0` workflow.
+The choice is made when DMR is built, not when your application is compiled. See [Data Redistribution](data-redistribution) for both workflows.
 
 ## Who owns `MPI_Init` and `MPI_Finalize`
 

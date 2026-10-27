@@ -27,7 +27,7 @@ cmake -B build \
 | `DMR_USE_TALP` | `0` | Compile with DLB/TALP (required by the CE policy) |
 | `DMR_BUILD_TEST_POLICIES` | `ON` | Build the round and list policies (`dmr_test_policies.h`) |
 | `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=1` | Build the CE policy (`dmr_CE_policy.h`). Requires `DMR_USE_TALP=1` |
-| `DMR_CHECKPOINT_RESTART` | `1` | Use checkpoint-restart for reconfigurations. Set to `0` to use the intercommunicator (`DMR_INTERCOMM`) instead |
+| `DMR_MECHANISM` | `spawn` | Reconfiguration mechanism: `spawn` (`MPI_Comm_spawn_multiple`, data over `DMR_INTERCOMM`) or `cr` (checkpoint-restart through the wrapper) |
 | `DMR_JOBS_CAN_SHRINK` | `1` | Enable Slurm job shrinking |
 | `DMR_JOBS_CAN_GROW` | `0` | Enable Slurm job growing (requires `DMR_JOBS_CAN_SHRINK=1`) |
 | `DMR_BLOCKING_REQ` | `0` | Block in `dmr_check` until resources are acquired. Useful with Slurm4DMR |
