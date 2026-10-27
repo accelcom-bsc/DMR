@@ -46,7 +46,7 @@ const config = {
           versions: {
             '2.0.0': { label: '2.0.0', path: '' },
             current: {
-              label: '3.0.0 (experimental)',
+              label: '3.0.0-alpha.1',
               path: '3.0.0',
               banner: 'unreleased',
             },
