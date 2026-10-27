@@ -34,27 +34,28 @@ dmr mpirun --host $NODELIST_WITH_COUNTS ./my_app
 
 ---
 
-## Issue fetching Slurm job ID info from environment
+## No allocations found
 
 **Symptom:**
 ```
-DMR Error: Issue fetching Slurm job ID info from environment.
+DMR Error: PMIx resource discovery found no allocations.
+DMR Error: Something went wrong discovering resources. Aborting.
 ```
 
-**Cause:** the application was run outside of a Slurm job allocation (e.g. directly from the shell). DMR requires `SLURM_JOB_ID` to be set, which only happens inside a job.
+**Cause:** the application was run outside of a Slurm job allocation (e.g. directly from the shell). `dmr_init` learns its allocation from the runtime, which only has one inside a job.
 
 **Fix:** submit via `sbatch` or run inside `salloc`.
 
 ---
 
-## dmr_wrapper can't find the executable
+## dmr can't find the executable
 
 **Symptom:**
 ```
-Error: dmr_wrapper was not able to find an executable in the provided command
+Error: dmr was not able to find an executable in the provided command
 ```
 
-**Cause:** `dmr_wrapper` looks for the executable by scanning the command's arguments for the first one that is either a file that exists and is executable relative to the job's current working directory, or a name resolvable via `PATH`. A relative path (e.g. `./build/my_app`) only works if that working directory is what you think it is -- Slurm jobs default to the submission directory (`$SLURM_SUBMIT_DIR`), not necessarily wherever the batch script file itself lives, especially with nested Slurm setups (Slurm4DMR) or scripts that live in a subdirectory of the project.
+**Cause:** `dmr` looks for the executable by scanning the command's arguments for the first one that is either a file that exists and is executable relative to the job's current working directory, or a name resolvable via `PATH`. A relative path (e.g. `./build/my_app`) only works if that working directory is what you think it is -- Slurm jobs default to the submission directory (`$SLURM_SUBMIT_DIR`), not necessarily wherever the batch script file itself lives, especially with nested Slurm setups (Slurm4DMR) or scripts that live in a subdirectory of the project.
 
 **Fix:** use an absolute path to the executable instead of a relative one, e.g. anchored on `$SLURM_SUBMIT_DIR`.
 
@@ -64,19 +65,55 @@ Error: dmr_wrapper was not able to find an executable in the provided command
 
 **Symptom:** the app runs and finishes immediately, `dmr_check` reports the target size already reached with `0 reconfig(s)` -- it never grows.
 
-**Cause:** `mpirun --host host1:1,host2:1,...` without `-np` uses every slot the hostlist offers, so the app starts at that full size right away instead of at 1 process. `dmr_wrapper` expects `-np`/`--np` to be present -- it explicitly strips it back out when rebuilding the launch command for each reconfig.
+**Cause:** `mpirun --host host1:1,host2:1,...` without `-np` uses every slot the hostlist offers, so the app starts at that full size right away instead of at 1 process. `dmr` expects `-np`/`--np` to be present -- it explicitly strips it back out when rebuilding the launch command for each reconfig.
 
 **Fix:** pass `-np 1` (or whatever the intended starting size is) explicitly.
 
 ---
 
-## Expand hangs forever waiting for Slurm resources
+## Expansion never completes
 
-**Symptom:** `dmr_check` reports `SHOULD EXPAND`, then the app hangs indefinitely, repeatedly logging `About to read expander job (ID N) state...` / `Read expander job state: 0...`.
+**Symptom:** after `dmr_check(SHOULD_EXPAND)` the application keeps running at its current size, and `pending_nodes` in the analytics output stays above zero.
 
-**Cause:** DMR grows by submitting its own separate "expander jobs" to Slurm to claim more nodes. If the app's own job already holds every node available in its partition/allocation (e.g. submitted with `--exclusive` over the whole cluster), there's nothing left for the expander job to land on, so it stays pending forever. `DMR_NODES_IN_EXPAND` (default `1`) matters too: if it's set higher than the number of nodes actually free, the expander job can never be satisfied either.
+**Cause:** the resource manager has no free nodes to grant. If the job already holds every node available in its partition (e.g. submitted with `--exclusive` over the whole cluster), the request stays pending. `DMR_NODES_IN_EXPAND` (default `1`) matters too: a request for more nodes than are free cannot be served.
 
-**Fix:** leave free nodes in the allocation/partition for expander jobs to use -- don't let the app's own job request all of them -- and make sure `DMR_NODES_IN_EXPAND` doesn't exceed how many nodes are actually free to grow into.
+**Fix:** leave free nodes in the partition, and keep `DMR_NODES_IN_EXPAND` within the number of free nodes. `dmr_cancel_expansion()` abandons a pending request.
+
+---
+
+## Nodes DMR is not running on
+
+**Symptom:**
+```
+DMR Error: Allocation <id> holds node(s) that DMR is not running on: <nodes>. Launch DMR on every node of its allocation.
+```
+
+**Cause:** `dmr_init` requires the application's processes to cover every node of the allocation. A bare `-np` can pack all processes onto the first nodes.
+
+**Fix:** list every node with `--host`, giving each the number of processes it should run (`host1:2,host2:2`), as in the [launch script](../getting-started/building-and-running#submitting-a-job).
+
+---
+
+## Unsupported `--map-by`
+
+**Symptom:**
+```
+Error: dmr supports only --map-by slot[:OVERSUBSCRIBE], not <policy>.
+```
+
+**Cause:** every reconfiguration places processes by slot, so `dmr` rejects other mapping policies.
+
+**Fix:** use `--map-by slot`, or drop `--map-by`.
+
+---
+
+## Removed CMake setting
+
+**Symptom:** CMake stops, naming a setting removed in 3.0.0 and its replacement.
+
+**Cause:** the setting no longer exists, and ignoring it would change the build.
+
+**Fix:** set the named replacement and remove the old setting, as the message says.
 
 ---
 
