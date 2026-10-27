@@ -12,13 +12,17 @@ This page covers **building DMR from source**.
 A pre-built module already provides the library, headers, and all dependencies:
 
 ```bash
-module load dmr
+module load dmr/3.0.0-alpha       # or dmr/3.0.0-alpha-dlb, for DLB and the CE policy
 ```
 
 Use that for **production runs** and skip this page; see [Building and Running Your Application](building-and-running). Follow the steps below only if you want to compile DMR from source, e.g. to develop new features.
 :::
 
 DMR needs two things: its **dependencies** (a specific build of Open MPI with external OpenPMIX and PRRTE) and **DMR itself**. Once both are in place, compiling and launching your application is covered in [Building and Running Your Application](building-and-running).
+
+:::caution[Unreleased PMIx and PRRTE]
+DMR 3.0.0-alpha.1 requires the latest PMIx and PRRTE masters, no older than PMIx `be4c8ef` and PRRTE `c2cc759`. These requirements may change during the alpha.
+:::
 
 ## 1. Get the dependencies
 
@@ -68,6 +72,7 @@ cd openpmix && git submodule update --init
 ./configure --prefix=$OPENPMIX_PREFIX --disable-debug
 make -j$(nproc) install && cd ..
 export LD_LIBRARY_PATH=$OPENPMIX_PREFIX/lib:$LD_LIBRARY_PATH
+export PKG_CONFIG_PATH=$OPENPMIX_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH   # DMR finds PMIx through pkg-config
 ```
 
 **PRRTE**
@@ -77,7 +82,7 @@ git clone https://github.com/openpmix/prrte.git
 cd prrte && git submodule update --init
 ./autogen.pl
 ./configure --prefix=$PRRTE_PREFIX --disable-debug \
-  --with-pmix=$OPENPMIX_PREFIX --without-slurm --without-pbs
+  --with-pmix=$OPENPMIX_PREFIX --with-slurm --without-pbs
 make -j$(nproc) install && cd ..
 ```
 
@@ -113,27 +118,6 @@ make -j$(nproc) install && cd ..
 # Add to .bashrc:
 LD_PRELOAD="$DLB_PREFIX/lib/libdlb_mpi.so"
 export DLB_ARGS="--talp --talp-external-profiler --quiet"
-```
-
-**Connect to Slurm.** CMake detects your Slurm automatically. If it fails:
-
-```bash
-ldd $(which sbatch) | grep libslurm   # find the library path
-export SLURM_LIB=/usr/lib64/slurm     # set it
-```
-
-If Slurm headers are missing, clone the matching Slurm source:
-
-```bash
-sinfo --version   # find your version
-git clone --depth 1 --branch <version> https://github.com/SchedMD/slurm
-export SLURM_INCLUDE=/path/to/slurm/slurm
-```
-
-Rename `slurm_version.h.in` → `slurm_version.h` and add before the final `#endif`:
-
-```c
-#define SLURM_VERSION_NUMBER SLURM_VERSION_NUM(a,b,c)
 ```
 
   </TabItem>
