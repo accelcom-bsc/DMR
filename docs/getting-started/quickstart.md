@@ -53,8 +53,8 @@ int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
 
-    /* On checkpoint-restart, main() is called again from scratch.
-       load() is invoked here when restarting after a reconfiguration. */
+    /* After a reconfiguration, main() is called again from scratch.
+       load() is invoked here in that case. */
     DMR_AUTO(dmr_init(argc, argv), (void)NULL, load(), cleanup());
 
     int rank, size;
@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
     if (rank == 0) printf("Running with %d process(es)\n", size);
 
     /* Each time main() runs we check the current size. If we have fewer than
-       4 processes, request an expansion. DMR will checkpoint, exit, and relaunch
-       the executable with one more node; main() will start again from the top. */
+       4 processes, request an expansion. DMR starts the executable on one more
+       node and these processes exit; main() starts again from the top. */
     if (size < 4) {
         /* Sleep before requesting the next expansion. Consecutive expands that
            arrive too quickly can cause overlapping MPI spawn operations to
@@ -133,7 +133,7 @@ minidmr stop
 
 ## Next steps
 
-- More about [Minidmr](../user-guide/app-structure)
+- More about [MiniDMR](../user-guide/minidmr)
 - [Installation](installation): set up DMR on a real cluster
 - [Building and Running Your Application](building-and-running): compile and launch your app per mode
 - [Application Structure](../user-guide/app-structure): understand the full lifecycle
