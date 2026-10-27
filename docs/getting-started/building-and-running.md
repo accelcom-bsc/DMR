@@ -7,7 +7,7 @@ Once DMR is available on your system, you compile your application against it an
 
 ## Prerequisite: DMR installed
 
-- **MareNostrum 5:** `module load dmr` provides the library, headers, and all dependencies.
+- **MareNostrum 5:** `module load dmr/3.0.0-alpha` provides the library, headers, and all dependencies.
 - **Other systems:** build DMR from source, see [Installation](installation).
 
 Either way you end up with DMR's `include` and `lib` directories available (referred to below as `$DMR_PATH`).
@@ -39,7 +39,16 @@ target_link_libraries(my_app PRIVATE DMR::dmr)
 
 ## Running your application
 
-DMR must run inside a **Slurm job allocation**, launched through the `dmr` wrapper (which wraps `mpirun`).
+DMR must run inside a **Slurm job allocation**, launched through the `dmr` wrapper.
+
+### The `dmr` wrapper
+
+`dmr` takes the launcher (`prterun`, `mpirun` or `mpiexec`) and its arguments. It starts a persistent PRRTE DVM, runs the application into it, and terminates the DVM on exit. It is also installed as `dmr_wrapper`.
+
+- The application's processes must cover every node of the allocation. Otherwise `dmr_init` fails and names the unused nodes.
+- `--map-by` accepts only `slot`, optionally with `:OVERSUBSCRIBE`. The wrapper rejects other policies.
+- Reconfigurations do not oversubscribe nodes. To allow it, launch with `--map-by slot:OVERSUBSCRIBE` and set `DMR_CAP_PROCS_TO_SLOTS=0`.
+- Any host named with `--host` must be part of the allocation.
 
 ### Configuring DMR at launch
 
