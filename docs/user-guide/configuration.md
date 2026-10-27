@@ -37,7 +37,7 @@ Every runtime setting below can also be set as a CMake variable of the same name
 
 ### Removed settings
 
-Configuring with a setting removed in 3.0.0 stops CMake when ignoring it would change the build, and names the replacement. Otherwise CMake warns.
+Configuring with a setting removed in 3.0.0 stops CMake when ignoring it would change the build, and names the replacement. Otherwise CMake warns. See [Migrating from 2.x](../getting-started/migrating-from-2x).
 
 ## Runtime environment variables
 
