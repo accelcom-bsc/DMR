@@ -35,7 +35,7 @@ Compile-time defaults, all settable as CMake variables of the same name. Most ca
 | `DMR_PROCS_PER_NODE` | `1` | environment, `dmr_set_ppn_next_expand()` | Processes spawned per added node |
 | `DMR_DEFAULT_INHIBITOR` | `0` | environment, `dmr_set_reconf_step_inhibitor()` | Skip N of every N+1 `dmr_check` calls |
 | `DMR_BLOCKING_REQ` | `0` | compile time only | Block in `dmr_check` until resources are acquired |
-| `DMR_CHECKPOINT_RESTART` | `1` | compile time only | `0` uses `DMR_INTERCOMM` instead of checkpoint files |
+| `DMR_MECHANISM` | `spawn` | compile time only | `spawn` or `cr`; see [Reconfiguration mechanisms](../user-guide/app-structure#reconfiguration-mechanisms) |
 | `DMR_JOBS_CAN_SHRINK` | `1` | compile time only | Allow shrinking Slurm jobs |
 | `DMR_JOBS_CAN_GROW` | `0` | compile time only | Allow growing Slurm jobs (needs `DMR_JOBS_CAN_SHRINK=1`) |
 | `DMR_SKIP_SSH_CHECK` | `0` | compile time only | Skip the SSH health check on new nodes |
@@ -286,7 +286,7 @@ Returned by `dmr_init`, `dmr_check`, `dmr_reconfigure`, and `dmr_finalize`, tell
 extern MPI_Comm DMR_INTERCOMM;
 ```
 
-Intercommunicator connecting the old and new processes during a reconfiguration. Only touch it when a `DMRAction` told you to (`DMR_RESTART_RECONF` or `DMR_REDIST_FINALIZE`) and `dmr_intercomm_available()` returns `1`, which requires a build with `DMR_CHECKPOINT_RESTART=0`. See [Data Redistribution](../user-guide/data-redistribution).
+Intercommunicator connecting the old and new processes during a reconfiguration. Only touch it when a `DMRAction` told you to (`DMR_RESTART_RECONF` or `DMR_REDIST_FINALIZE`) and `dmr_intercomm_available()` returns `true`, which requires the spawn mechanism. See [Data Redistribution](../user-guide/data-redistribution).
 
 ### Functions
 

@@ -88,8 +88,9 @@ minidmr enter
 # Run an arbitrary command on the controller node (e.g. to compile DMR)
 minidmr exec -u malluser -- bash -c 'source env_setup.sh && ./build.sh'
 
-# Run a Slurm job, blocking until it finishes; the exit code is propagated
-minidmr srun -u malluser -e DMR_CHECKPOINT_RESTART=1 -- -N2 mpirun ./my_test
+# Run a Slurm job, blocking until it finishes; the exit code is propagated.
+# -e passes an environment variable to the job, here DMR_PRINT_ANALYTICS as an example
+minidmr srun -u malluser -e DMR_PRINT_ANALYTICS=1 -- -N2 mpirun ./my_test
 
 # Submit a batch job via sbatch, from a script on the controller node
 minidmr sbatch -u malluser -- job.sbatch

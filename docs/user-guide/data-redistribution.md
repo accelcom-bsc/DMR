@@ -5,11 +5,11 @@ title: Data Redistribution
 
 When a reconfiguration happens, all processes exit and the executable restarts from scratch with the new process count. Before exiting, the old processes must transfer their state to the new ones so the application can resume correctly.
 
-DMR supports two ways to do this, selected at compile time with `DMR_CHECKPOINT_RESTART`.
+How the state moves depends on the reconfiguration mechanism, selected when DMR is built with `DMR_MECHANISM`.
 
-## Checkpoint-restart (default)
+## Checkpoint-restart
 
-`DMR_CHECKPOINT_RESTART=1`
+`DMR_MECHANISM=cr`
 
 Old processes write their state to disk (`redist_func`), then exit. New processes start from the beginning of the executable and read that state back (`restart_func`).
 
@@ -25,11 +25,11 @@ sequenceDiagram
     Note over New: continue...
 ```
 
-Use this mode when you already have checkpoint logic in your application, or when your system does not support the custom PRRTE version required for intercommunicator mode.
+Use this mechanism when you already have checkpoint logic in your application. `DMR_INTERCOMM` is not available under it.
 
-## Intercommunicator
+## Spawn (intercommunicator)
 
-`DMR_CHECKPOINT_RESTART=0`
+`DMR_MECHANISM=spawn`, the default
 
 Old and new processes are **alive at the same time** for a short window. DMR exposes `DMR_INTERCOMM`, an MPI intercommunicator connecting both sets of processes so they can exchange data directly. Once the transfer is done, the old processes exit. New processes also start from the beginning of the executable.
 
@@ -73,7 +73,7 @@ The intercommunicator only exists during the reconfigure window, and the window 
 | Leaving (old) ranks | `dmr_reconfigure()` returns `DMR_REDIST_FINALIZE` | `dmr_finalize()` (frees it, then the rank exits) | **`redist_func`** (send) |
 | Spawned (new) ranks | `dmr_init()` returns `DMR_RESTART_RECONF` | `dmr_reconfigure()` (frees it) | **`restart_func`** (receive) |
 
-`DMR_AUTO` already sequences these correctly: on the leaving side it calls `dmr_reconfigure()` (which spawns the new world and creates the intercomm) *before* `redist_func`; on the spawned side it calls `restart_func` *before* `dmr_reconfigure()` (which frees the intercomm). The intercommunicator is **not** valid after `dmr_check`/`dmr_init` return in the steady state — `dmr_intercomm_available()` returns 0 there.
+`DMR_AUTO` already sequences these correctly: on the leaving side it calls `dmr_reconfigure()` (which spawns the new world and creates the intercomm) *before* `redist_func`; on the spawned side it calls `restart_func` *before* `dmr_reconfigure()` (which frees the intercomm). The intercommunicator is **not** valid after `dmr_check`/`dmr_init` return in the steady state — `dmr_intercomm_available()` returns `false` there.
 
 ### Worked example: redistributing a block-distributed array
 
@@ -200,6 +200,6 @@ The send/receive loops above are symmetric and need no special-casing: on a **sh
 
 ### Carrying the resume point without a disk checkpoint
 
-In checkpoint-restart mode the loop index is usually restored from the same file as the data (see [Application Structure](app-structure)). In intercommunicator mode there is no file, so send the resume index over `DMR_INTERCOMM` alongside the array — e.g. have old rank 0 `MPI_Send` it to new rank 0 in `send_state`, and have new rank 0 `MPI_Recv` it in `recv_state` and broadcast it over the new `MPI_COMM_WORLD`.
+Under checkpoint-restart the loop index is usually restored from the same file as the data (see [Application Structure](app-structure)). Over the intercommunicator there is no file, so send the resume index over `DMR_INTERCOMM` alongside the array — e.g. have old rank 0 `MPI_Send` it to new rank 0 in `send_state`, and have new rank 0 `MPI_Recv` it in `recv_state` and broadcast it over the new `MPI_COMM_WORLD`.
 
 `dmr_get_reconfig_count()` only tells you *how many times* the job has reconfigured since launch — it is not a work-progress counter, so do not use it as the resume index unless your iteration count happens to equal the reconfiguration count.
