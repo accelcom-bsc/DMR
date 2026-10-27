@@ -25,7 +25,7 @@ The same source can be compiled and launched on MareNostrum 5 or MiniDMR.
 
 By default (`make`), `checkpoint`/`restart` use MPI-IO: each rank writes/reads its slice of the dataset to a shared file (`sleepof-checkpoint-file`) using `MPI_File_write_all`/`MPI_File_read_all` on a subarray view.
 
-`make clean && make IN_MEMORY=true` rebuilds the same `sleepOf` binary to instead use `data_send`/`data_receive`, which exchange the dataset directly between old and new processes over `DMR_INTERCOMM` using `MPI_Alltoallv`. This requires DMR to be built with `DMR_CHECKPOINT_RESTART=0` (`dmr_intercomm_available()` is checked before use, and the program aborts with a clear message if it is not) — see [Choose where to run](#choose-where-to-run) below for which MiniDMR image that means.
+`make clean && make IN_MEMORY=true` rebuilds the same `sleepOf` binary to instead use `data_send`/`data_receive`, which exchange the dataset directly between old and new processes over `DMR_INTERCOMM` using `MPI_Alltoallv`. This requires DMR built with the spawn mechanism, the default (`dmr_intercomm_available()` is checked before use, and the program aborts with a clear message if it is not) — see [Choose where to run](#choose-where-to-run) below for which MiniDMR image that means.
 
 ## Prerequisites
 
@@ -114,7 +114,7 @@ sbatch --wait start_minidmr.sh
   </TabItem>
   <TabItem value="inmemory" label="In-memory">
 
-Requires the `-cr0` image, built with `DMR_CHECKPOINT_RESTART=0`:
+Requires the `-cr0` image, built with the spawn mechanism:
 
 ```bash
 minidmr start --nodes 4 -i registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-3.0.0-cr0
