@@ -179,7 +179,7 @@ The context carries no minimum or maximum node count: bounds are your policy's b
 
 ## Bounds are yours to enforce
 
-DMR only rejects requests that make no sense at all (an expand that adds nothing, a shrink that removes everything). It will happily ask Slurm for 500 nodes if your `run` says so. Clamp in `run`:
+DMR only rejects requests that make no sense at all (an expand that adds nothing, a shrink that removes everything). It requests 500 nodes if your `run` says so. Clamp in `run`:
 
 ```c
 int target = context->current_nodes + change;

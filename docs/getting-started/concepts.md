@@ -26,7 +26,7 @@ DMR offers two modes of operation, which differ in how they interact with the re
 
 ### Production environment with DMR@Jobs
 
-DMR@Jobs connects to your **system's default Slurm instance**. Your application runs as a regular Slurm job and DMR requests node additions or removals through the standard Slurm API.
+DMR@Jobs connects to your **system's default Slurm instance**. Your application runs as a regular Slurm job. DMR requests and releases nodes through PMIx, and PRRTE, the runtime that launched the application, passes the requests on to Slurm.
 
 ### Controlled environment with Slurm4DMR
 

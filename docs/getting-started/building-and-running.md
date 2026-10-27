@@ -67,7 +67,7 @@ See [Configuration](../user-guide/configuration#runtime-environment-variables) f
 
 ### DMR@Jobs
 
-Submit a normal batch job that invokes the wrapper. DMR requests node additions or removals from the system's Slurm as the application reconfigures.
+Submit a normal batch job that invokes the wrapper. As the application reconfigures, DMR requests and releases nodes through PRRTE, which passes the requests on to the system's Slurm.
 
 ```bash
 #!/bin/bash
