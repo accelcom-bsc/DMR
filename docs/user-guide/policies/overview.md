@@ -124,4 +124,4 @@ Or at compile/run time: `DMR_DEFAULT_INHIBITOR=9`.
 | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE=n` in the environment, or custom policy state |
 | `dmr_set_policy_pref_nodes(n)` | Removed along with `DMR_DEFAULT_POLICY_PREF` |
 
-Manual control (`SHOULD_EXPAND`, `SHOULD_SHRINK`, `SHOULD_STAY`) and every `dmr_set_*_next_*` sizing call are unchanged.
+Manual control (`SHOULD_EXPAND`, `SHOULD_SHRINK`, `SHOULD_STAY`) is unchanged. Of the sizing calls, `dmr_set_jobs_next_shrink()` is now `dmr_set_allocs_next_shrink()`, and `dmr_get_active_expansions()` is now `dmr_get_active_allocations() - 1`.
