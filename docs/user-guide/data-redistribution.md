@@ -64,6 +64,8 @@ A reconfiguration is an **MPI spawn of a brand-new world** (`MPI_Comm_spawn_mult
 
 So `MPI_Comm_size(MPI_COMM_WORLD, ...)` gives your own world's size, and `MPI_Comm_remote_size(DMR_INTERCOMM, ...)` gives the *other* world's size. Remote ranks are numbered `0 .. remote_size-1`, and you send to / receive from them by that rank number over `DMR_INTERCOMM` (it is a normal MPI intercommunicator).
 
+DMR owns `DMR_INTERCOMM`. Do not free or disconnect it.
+
 ### When is `DMR_INTERCOMM` valid?
 
 The intercommunicator only exists during the reconfigure window, and the window is different on each side. Each side must do its transfer inside the matching `DMR_AUTO` callback:
