@@ -34,13 +34,10 @@ Compile-time defaults, all settable as CMake variables of the same name. Most ca
 | `DMR_NODES_IN_SHRINK` | `1` | environment, `dmr_set_nodes_next_shrink()` | Nodes removed per shrink |
 | `DMR_PROCS_PER_NODE` | `1` | environment, `dmr_set_ppn_next_expand()` | Processes spawned per added node |
 | `DMR_DEFAULT_INHIBITOR` | `0` | environment, `dmr_set_reconf_step_inhibitor()` | Skip N of every N+1 `dmr_check` calls |
-| `DMR_BLOCKING_REQ` | `0` | compile time only | Block in `dmr_check` until resources are acquired |
+| `DMR_BLOCKING_REQ` | `0` | environment | Block in `dmr_check` until resources are acquired |
+| `DMR_CAP_PROCS_TO_SLOTS` | `1` | environment | Trim each added node to the slots it reports |
+| `DMR_CAN_RELEASE_SINGLE_NODES` | `1` | compile time only | Whether the resource manager can release individual nodes |
 | `DMR_MECHANISM` | `spawn` | compile time only | `spawn` or `cr`; see [Reconfiguration mechanisms](../user-guide/app-structure#reconfiguration-mechanisms) |
-| `DMR_JOBS_CAN_SHRINK` | `1` | compile time only | Allow shrinking Slurm jobs |
-| `DMR_JOBS_CAN_GROW` | `0` | compile time only | Allow growing Slurm jobs (needs `DMR_JOBS_CAN_SHRINK=1`) |
-| `DMR_SKIP_SSH_CHECK` | `0` | compile time only | Skip the SSH health check on new nodes |
-| `DMR_SSH_CHECK_TIMEOUT` | `20` | compile time only | Seconds to wait for that health check |
-| `CUSTOM_SLURM_BIN_PREFIX` | `""` | compile time only | Where expander jobs look for `scontrol` |
 
 The remaining macros are **policy fallbacks**. DMR itself never reads them: each built-in policy resolves them in its constructor, from the environment first and from the macro otherwise.
 
@@ -68,6 +65,7 @@ typedef enum DMRStatusEnum {
     DMR_ERROR_BAD_ARGS,
     DMR_ERROR_UNSUPPORTED,
     DMR_ERROR_OUT_OF_MEM,
+    DMR_ERROR_RESOURCE_REQUEST,
 } DMRStatus;
 ```
 
@@ -81,6 +79,7 @@ typedef enum DMRStatusEnum {
 | `DMR_ERROR_BAD_ARGS` | An argument was rejected |
 | `DMR_ERROR_UNSUPPORTED` | Not supported in the current state or build |
 | `DMR_ERROR_OUT_OF_MEM` | Out of memory |
+| `DMR_ERROR_RESOURCE_REQUEST` | The resource manager rejected the request |
 
 The lifecycle functions return [`DMRAction`](#dmraction) instead of a status code.
 
@@ -109,12 +108,10 @@ Called from a non-root rank, `dmr_get_analytics` leaves the reconfiguration-spec
 
 ```c
 DMRStatus dmr_get_analytics(DMRAnalytics *analytics);
-DMRStatus dmr_create_custom_analytics_event(char const *event, DMRAnalytics **analytics_out);
-DMRStatus dmr_destroy_custom_analytics_event(DMRAnalytics *analytics);
-DMRStatus dmr_print_analytics_from(DMRAnalytics const *analytics_in);
+DMRStatus dmr_print_custom_analytics_event(char const *event);
 ```
 
-A struct returned by `dmr_create_custom_analytics_event` is a **snapshot**, not a live view, and must be released with `dmr_destroy_custom_analytics_event`. The custom event string must not collide with a reserved `DMR_EVENT_*` constant.
+`dmr_print_custom_analytics_event` prints a snapshot of the current runtime state labelled with `event`, if analytics are enabled. It returns `DMR_ERROR_BAD_ARGS` for an event starting with `DMR_EVENT_`, which is reserved for DMR's own events.
 
 ### Event constants
 
@@ -124,10 +121,15 @@ A struct returned by `dmr_create_custom_analytics_event` is a **snapshot**, not 
 | `DMR_EVENT_INIT_COMPLETE` | `dmr_init` completed |
 | `DMR_EVENT_CHECK_CALLED` | `dmr_check` was called |
 | `DMR_EVENT_STAY_CURRENT` | The configuration is left unchanged |
-| `DMR_EVENT_START_EXPAND_SLURM` | Resources requested from Slurm |
-| `DMR_EVENT_START_EXPAND_MPI` | MPI expansion started |
-| `DMR_EVENT_START_SHRINK` | Shrink triggered |
-| `DMR_EVENT_DATA_REDIST_COMPLETE` | Data redistribution finished |
+| `DMR_EVENT_EXPAND_RESOURCES_START` | More resources requested from the resource manager |
+| `DMR_EVENT_DVM_WAIT_START` | The resource manager answered; the DVM is bringing the nodes up |
+| `DMR_EVENT_EXPAND_RESOURCES_END` | The requested resources were reported ready |
+| `DMR_EVENT_SHRINK_TRIGGERED` | Shrink started |
+| `DMR_EVENT_INTERNAL_STATE_STORE_START` / `_END` | DMR stores its internal state for the relaunch |
+| `DMR_EVENT_SPAWN_START` / `_END` | DMR spawns the new processes |
+| `DMR_EVENT_REDIST_PARENT_START` / `_END` | The application sends data to the incoming processes |
+| `DMR_EVENT_REDIST_CHILD_START` / `_END` | The application receives data from the outgoing processes |
+| `DMR_EVENT_RECONFIG_COMPLETE` | Every step of a reconfiguration completed |
 | `DMR_EVENT_TALP_CHECK_CE_ACC` | TALP CE check performed |
 | `DMR_EVENT_LAST_FINALIZE` | `dmr_finalize` called outside a reconfiguration |
 
@@ -149,7 +151,7 @@ DMRStatus dmr_set_procs_next_expand(int procs);   // exact total across the new 
 DMRStatus dmr_set_ppn_next_expand(int ppn);       // processes per node; overrides procs
 DMRStatus dmr_set_nodes_next_shrink(int nodes);
 DMRStatus dmr_set_procs_next_shrink(int procs);
-DMRStatus dmr_set_jobs_next_shrink(int jobs);     // remove N whole expansion jobs
+DMRStatus dmr_set_allocs_next_shrink(int allocs); // release N whole allocations
 ```
 
 ### Sizing getters (rank 0 only)
@@ -170,8 +172,8 @@ Callable from any rank.
 ```c
 int dmr_get_current_node_count(void);   // nodes in the current MPI_COMM_WORLD
 int dmr_get_reconfig_count(void);       // reconfigurations since launch; valid even before dmr_init
-int dmr_get_active_expansions(void);    // expansion jobs currently active
-int dmr_pending_expansion(void);        // 1 if an expansion is pending
+int  dmr_get_active_allocations(void);  // allocations DMR runs in, the launch one included
+bool dmr_pending_expansion(void);       // true if an expansion is pending
 ```
 
 ### Expansion control and throttling
@@ -181,7 +183,7 @@ DMRStatus dmr_cancel_expansion(void);              // collective
 DMRStatus dmr_set_reconf_step_inhibitor(int steps);
 ```
 
-`dmr_cancel_expansion` is **collective** and only valid while `dmr_pending_expansion()` returns `1`. The inhibitor makes DMR ignore N out of every N+1 `dmr_check` calls; it has no effect on a reconfiguration already underway.
+`dmr_cancel_expansion` is **collective** and only valid while `dmr_pending_expansion()` returns `true`. It abandons the expansion even if the resource manager refuses to cancel the request, and then returns `DMR_ERROR_RESOURCE_REQUEST`. The inhibitor makes DMR ignore N out of every N+1 `dmr_check` calls; it has no effect on a reconfiguration already underway.
 
 ---
 
@@ -295,11 +297,11 @@ DMRAction dmr_init(int argc, char *argv[]);
 DMRAction dmr_check(DMRSuggestion suggested_reconfiguration);
 DMRAction dmr_reconfigure(void);
 DMRAction dmr_finalize(void);
-int       dmr_intercomm_available(void);
+bool      dmr_intercomm_available(void);
 DMRAction dmr_get_last_action(void);
 ```
 
-**`dmr_init`**: call immediately after `MPI_Init`, passing `argc`/`argv` untouched (DMR forwards them to spawned processes). **Collective.** Returns `DMR_NO_ACTION` on first launch, `DMR_RESTART_RECONF` on a process spawned by an expansion.
+**`dmr_init`**: call immediately after `MPI_Init`, passing `argc`/`argv` untouched (DMR forwards them to spawned processes). **Collective.** Returns `DMR_NO_ACTION` on first launch, `DMR_RESTART_RECONF` on a process started by a reconfiguration.
 
 **`dmr_check`**: evaluate the suggestion (or the active policy, with `USE_POLICY`) and act on any pending reconfiguration. Call it once per iteration of your main loop. **Collective.**
 
