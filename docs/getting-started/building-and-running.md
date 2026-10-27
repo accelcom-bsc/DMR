@@ -79,7 +79,7 @@ sbatch submit.sh
 
 ### Slurm4DMR
 
-Slurm4DMR runs a **nested Slurm instance** inside a fixed allocation, which reassigns nodes internally as the application reconfigures. Requires a DMR built with `SLURM4DMR`, then a launch script that deploys the nested Slurm and submits your job to it (the wrapper invocation is the same `dmr mpirun` pattern, but it runs against the inner Slurm).
+Slurm4DMR runs a **nested Slurm instance** inside a fixed allocation, which reassigns nodes internally as the application reconfigures. It needs a launch script that deploys the nested Slurm and submits your job to it (the wrapper invocation is the same `dmr mpirun` pattern, but it runs against the inner Slurm).
 
 :::note
 Slurm4DMR is currently only intended to run on **MareNostrum 5**. The full nested-deployment setup is not yet documented here; for help contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).

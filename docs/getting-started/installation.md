@@ -15,7 +15,7 @@ A pre-built module already provides the library, headers, and all dependencies:
 module load dmr
 ```
 
-Use that for **production runs** and skip this page; see [Building and Running Your Application](building-and-running). Follow the steps below only if you want to compile DMR from source (e.g., Slurm4DMR, develop new features...).
+Use that for **production runs** and skip this page; see [Building and Running Your Application](building-and-running). Follow the steps below only if you want to compile DMR from source, e.g. to develop new features.
 :::
 
 DMR needs two things: its **dependencies** (a specific build of Open MPI with external OpenPMIX and PRRTE) and **DMR itself**. Once both are in place, compiling and launching your application is covered in [Building and Running Your Application](building-and-running).
@@ -141,33 +141,30 @@ Rename `slurm_version.h.in` → `slurm_version.h` and add before the final `#end
 
 ## 2. Build DMR
 
-With the dependencies in place, the build is the same on any system. Slurm4DMR also needs its nested Slurm installed (see [where DMR runs](../getting-started/concepts#where-dmr-runs)).
+With the dependencies in place, the build is the same on any system, and it runs under the [system Slurm or Slurm4DMR](../getting-started/concepts#where-dmr-runs).
 
 ```bash
 git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
 cd dmr
 ```
 
-The submodules provide the **custom Slurm** (mandatory for Slurm4DMR) and the **examples** (optional, only if you want them). Download them with:
+The submodules provide the **examples** (optional). Download them with:
 ```bash
 git submodule update --init --recursive
 ```
 
-Before configuring the compilation, you need to set two environment variables pointing to the sources and to a standard install location (edit paths to your liking):
+Set two environment variables pointing to the sources and to an install location (edit paths to your liking):
 
 ```bash
 SOURCES_DMR_PATH=$HOME/dmr
 INSTALL_DMR_PATH=$HOME/.local
 ```
 
-<Tabs groupId="mode">
-<TabItem value="system" label="System Slurm">
-
 Compile DMR:
 
 ```bash
 cd $SOURCES_DMR_PATH
-cmake -B build -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH 
+cmake -B build -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH
 cmake --build build -j10
 cmake --install build
 ```
@@ -181,35 +178,7 @@ cmake -B build \
   -DDMR_USE_TALP=1
 ```
 
-</TabItem>
-<TabItem value="slurm4dmr" label="Slurm4DMR">
-
-First of all, you need the custom Slurm that will run nested to the main Slurm job:
-
-```bash
-cd $SOURCES_DMR_PATH/tools/slurm4dmr
-export SLURM4DMR_ROOT=$HOME/.local/slurm4dmr # Edit to your liking
-cd custom-slurm
-./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
-make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j10
-make install
-```
-
-Then, DMR (see [Configuration](../user-guide/configuration) for the full list of flags):
-
-```bash
-cd $SOURCES_DMR_PATH
-cmake -B build \
-  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
-  -DSLURM4DMR=1 \
-cmake --build build -j10
-cmake --install build
-```
-
-Export SLURM4DMR_ROOT with the custom Slurm installation path and when using Slurm4DMR keep it in your environment (i.e., .bashrc).
-
-</TabItem>
-</Tabs>
+Slurm4DMR is installed separately from DMR. For its setup, contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
 
 Remember to keep exported the installation PATH while using DMR with (i.e., .bashrc):
 ```bash
