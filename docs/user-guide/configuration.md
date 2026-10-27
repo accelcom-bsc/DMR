@@ -22,7 +22,6 @@ cmake -B build \
 | Option | Default | Description |
 |--------|---------|-------------|
 | `CMAKE_INSTALL_PREFIX` | system default | Installation directory for headers and `libdmr` |
-| `SLURM4DMR` | `0` | Build for the Slurm4DMR backend (nested Slurm) instead of DMR@Jobs. Requires `SLURM4DMR_ROOT` (or `SLURM4DMR_LIB_DIR`/`SLURM4DMR_BIN_DIR`/`SLURM4DMR_INCLUDE_DIR`) |
 | `DMR_PROCS_PER_NODE` | `1` | Processes spawned per node added in an expand |
 | `DMR_USE_TALP` | `0` | Compile with DLB/TALP (required by the CE policy) |
 | `DMR_BUILD_TEST_POLICIES` | `ON` | Build the round and list policies (`dmr_test_policies.h`) |
