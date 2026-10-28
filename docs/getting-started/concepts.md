@@ -20,15 +20,11 @@ It is less suitable when:
 
 **If your application already implements checkpoint-restart**, DMR is trivially easy to adopt: hook your existing save/load logic into `redist_func` and `restart_func` and add `dmr_check` at the checkpoint point.
 
-DMR offers two modes of operation, which differ in how they interact with the resource manager.
+## Where DMR runs
 
-## Modes of operation
+The same DMR build runs under your **system's Slurm instance** or under Slurm4DMR. Your application runs as a regular Slurm job. DMR requests and releases nodes through PMIx, and PRRTE, the runtime that launched the application, passes the requests on to Slurm.
 
-### Production environment with DMR@Jobs
-
-DMR@Jobs connects to your **system's default Slurm instance**. Your application runs as a regular Slurm job. DMR requests and releases nodes through PMIx, and PRRTE, the runtime that launched the application, passes the requests on to Slurm.
-
-### Controlled environment with Slurm4DMR
+### Nested Slurm with Slurm4DMR
 
 Slurm4DMR runs a **nested Slurm instance** inside a fixed resource allocation managed by the outer resource manager. Your job owns a fixed set of nodes, and Slurm4DMR reassigns them internally as the application expands or shrinks.
 
@@ -37,7 +33,7 @@ Slurm4DMR is currently only intended to run on **MareNostrum 5**.
 :::
 
 :::info[Not yet documented]
-When to use Slurm4DMR vs DMR@Jobs is not yet fully documented. For guidance contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
+When to use Slurm4DMR is not yet documented. For guidance contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
 :::
 
 

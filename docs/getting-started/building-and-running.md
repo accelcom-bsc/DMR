@@ -3,7 +3,7 @@ sidebar_position: 5
 title: Building and Running
 ---
 
-Once DMR is available on your system, you compile your application against it and launch it through the DMR wrapper. **How you compile and launch depends on the [mode of operation](concepts)** you target.
+Once DMR is available on your system, you compile your application against it and launch it through the DMR wrapper.
 
 ## Prerequisite: DMR installed
 
@@ -37,20 +37,9 @@ find_package(DMR REQUIRED)
 target_link_libraries(my_app PRIVATE DMR::dmr)
 ```
 
-### The mode is fixed when DMR is built
-
-The mode is **baked into the DMR library at build time**, not chosen when you compile your application. A given DMR build targets one backend:
-
-| Mode | How DMR was built |
-| --- | --- |
-| DMR@Jobs (default) | standard build |
-| Slurm4DMR | built with the `SLURM4DMR` CMake option |
-
-Your application links against `libdmr` the same way in both cases, and runs in whichever mode the DMR it links against was built for. So there is no app-side flag: to use Slurm4DMR, link against (or `module load`) a DMR that was compiled with `SLURM4DMR`. See [Installation](installation) and the [`SLURM4DMR` CMake option](../user-guide/configuration#cmake-options).
-
 ## Running your application
 
-DMR must run inside a **Slurm job allocation**, launched through the `dmr` wrapper (which wraps `mpirun`). The way you do this differs by mode.
+DMR must run inside a **Slurm job allocation**, launched through the `dmr` wrapper (which wraps `mpirun`).
 
 ### Configuring DMR at launch
 
@@ -65,7 +54,7 @@ export DMR_DEFAULT_POLICY_MAX=4
 
 See [Configuration](../user-guide/configuration#runtime-environment-variables) for the full list.
 
-### DMR@Jobs
+### Submitting a job
 
 Submit a normal batch job that invokes the wrapper. As the application reconfigures, DMR requests and releases nodes through PRRTE, which passes the requests on to the system's Slurm.
 
