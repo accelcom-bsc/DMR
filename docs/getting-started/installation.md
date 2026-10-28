@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 This page covers **building DMR from source**.
 
 :::tip[On MareNostrum 5 you do not need this]
-A pre-built module already provides the library, headers, and all dependencies for DMR@jobs:
+A pre-built module already provides the library, headers, and all dependencies:
 
 ```bash
 module load dmr
@@ -141,7 +141,7 @@ Rename `slurm_version.h.in` → `slurm_version.h` and add before the final `#end
 
 ## 2. Build DMR
 
-With the dependencies in place, the build is the same on any system, you just need to chose which flavour you want: controlled (Slurm4DMR) or production (DMR@jobs) environment (see [modes of operation](../getting-started/concepts#modes-of-operation)).
+With the dependencies in place, the build is the same on any system. Slurm4DMR also needs its nested Slurm installed (see [where DMR runs](../getting-started/concepts#where-dmr-runs)).
 
 ```bash
 git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
@@ -161,7 +161,7 @@ INSTALL_DMR_PATH=$HOME/.local
 ```
 
 <Tabs groupId="mode">
-<TabItem value="dmrjobs" label="DMR@jobs">
+<TabItem value="system" label="System Slurm">
 
 Compile DMR:
 
