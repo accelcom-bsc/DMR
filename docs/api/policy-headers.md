@@ -15,21 +15,19 @@ The interface these constructors return, `DMRPolicy` and friends, comes from the
 
 ## Declarations
 
-| Header | Guard | Constructors |
+| Header | Macro | Constructors |
 |--------|-------|--------------|
-| `dmr_test_policies.h` | `DMR_WITH_TEST_POLICIES` | `DMRPolicy *dmr_get_policy_round(void);`<br/>`DMRPolicy *dmr_get_policy_list(void);` |
-| `dmr_CE_policy.h` | `DMR_WITH_CE_POLICY` | `DMRPolicy *dmr_get_policy_ce(void);` |
+| `dmr_test_policies.h` | `DMR_TEST_POLICIES` | `DMRPolicy *dmr_get_policy_round(void);`<br/>`DMRPolicy *dmr_get_policy_list(void);` |
+| `dmr_CE_policy.h` | `DMR_CE_POLICY` | `DMRPolicy *dmr_get_policy_ce(void);` |
 
-Each declaration sits inside `#if defined(<guard>)`, so calling a constructor whose policy was not built is a compile error naming the function, not a link error at the end of the build.
+Each header is installed only when its policies are built. It defines its macro with no value, so code can test for it with `#ifdef` after including the header.
 
 ## Build flags
 
-The guards are set by CMake:
-
-| CMake flag | Default | Compile definition | Policies |
-|------------|---------|--------------------|----------|
-| `DMR_BUILD_TEST_POLICIES` | `ON` | `DMR_WITH_TEST_POLICIES` | round, list |
-| `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=ON` | `DMR_WITH_CE_POLICY` | ce |
+| CMake flag | Default | Policies |
+|------------|---------|----------|
+| `DMR_BUILD_TEST_POLICIES` | `ON` | round, list |
+| `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=ON` | ce |
 
 `DMR_BUILD_CE_POLICY=ON` requires `DMR_USE_TALP=ON`. CMake errors out if you ask for one without the other.
 

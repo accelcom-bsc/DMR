@@ -9,16 +9,20 @@ import TabItem from '@theme/TabItem';
 This page covers **building DMR from source**.
 
 :::tip[On MareNostrum 5 you do not need this]
-A pre-built module already provides the library, headers, and all dependencies for DMR@jobs:
+A pre-built module already provides the library, headers, and all dependencies:
 
 ```bash
-module load dmr
+module load dmr/3.0.0-alpha       # or dmr/3.0.0-alpha-dlb, for DLB and the CE policy
 ```
 
-Use that for **production runs** and skip this page; see [Building and Running Your Application](building-and-running). Follow the steps below only if you want to compile DMR from source (e.g., Slurm4DMR, develop new features...).
+Use that for **production runs** and skip this page; see [Building and Running Your Application](building-and-running). Follow the steps below only if you want to compile DMR from source, e.g. to develop new features.
 :::
 
 DMR needs two things: its **dependencies** (a specific build of Open MPI with external OpenPMIX and PRRTE) and **DMR itself**. Once both are in place, compiling and launching your application is covered in [Building and Running Your Application](building-and-running).
+
+:::caution[Unreleased PMIx and PRRTE]
+DMR 3.0.0-alpha.1 requires the latest PMIx and PRRTE masters, no older than PMIx `be4c8ef` and PRRTE `c2cc759`. These requirements may change during the alpha.
+:::
 
 ## 1. Get the dependencies
 
@@ -68,6 +72,7 @@ cd openpmix && git submodule update --init
 ./configure --prefix=$OPENPMIX_PREFIX --disable-debug
 make -j$(nproc) install && cd ..
 export LD_LIBRARY_PATH=$OPENPMIX_PREFIX/lib:$LD_LIBRARY_PATH
+export PKG_CONFIG_PATH=$OPENPMIX_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH   # DMR finds PMIx through pkg-config
 ```
 
 **PRRTE**
@@ -77,7 +82,7 @@ git clone https://github.com/openpmix/prrte.git
 cd prrte && git submodule update --init
 ./autogen.pl
 ./configure --prefix=$PRRTE_PREFIX --disable-debug \
-  --with-pmix=$OPENPMIX_PREFIX --without-slurm --without-pbs
+  --with-pmix=$OPENPMIX_PREFIX --with-slurm --without-pbs
 make -j$(nproc) install && cd ..
 ```
 
@@ -115,59 +120,35 @@ LD_PRELOAD="$DLB_PREFIX/lib/libdlb_mpi.so"
 export DLB_ARGS="--talp --talp-external-profiler --quiet"
 ```
 
-**Connect to Slurm.** CMake detects your Slurm automatically. If it fails:
-
-```bash
-ldd $(which sbatch) | grep libslurm   # find the library path
-export SLURM_LIB=/usr/lib64/slurm     # set it
-```
-
-If Slurm headers are missing, clone the matching Slurm source:
-
-```bash
-sinfo --version   # find your version
-git clone --depth 1 --branch <version> https://github.com/SchedMD/slurm
-export SLURM_INCLUDE=/path/to/slurm/slurm
-```
-
-Rename `slurm_version.h.in` → `slurm_version.h` and add before the final `#endif`:
-
-```c
-#define SLURM_VERSION_NUMBER SLURM_VERSION_NUM(a,b,c)
-```
-
   </TabItem>
 </Tabs>
 
 ## 2. Build DMR
 
-With the dependencies in place, the build is the same on any system, you just need to chose which flavour you want: controlled (Slurm4DMR) or production (DMR@jobs) environment (see [modes of operation](../getting-started/concepts#modes-of-operation)).
+With the dependencies in place, the build is the same on any system, and it runs under the [system Slurm or Slurm4DMR](../getting-started/concepts#where-dmr-runs).
 
 ```bash
 git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
 cd dmr
 ```
 
-The submodules provide the **custom Slurm** (mandatory for Slurm4DMR) and the **examples** (optional, only if you want them). Download them with:
+The submodules provide the **Slurm4DMR** sources and the **examples**, both optional. Download them with:
 ```bash
 git submodule update --init --recursive
 ```
 
-Before configuring the compilation, you need to set two environment variables pointing to the sources and to a standard install location (edit paths to your liking):
+Set two environment variables pointing to the sources and to an install location (edit paths to your liking):
 
 ```bash
 SOURCES_DMR_PATH=$HOME/dmr
 INSTALL_DMR_PATH=$HOME/.local
 ```
 
-<Tabs groupId="mode">
-<TabItem value="dmrjobs" label="DMR@jobs">
-
 Compile DMR:
 
 ```bash
 cd $SOURCES_DMR_PATH
-cmake -B build -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH 
+cmake -B build -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH
 cmake --build build -j10
 cmake --install build
 ```
@@ -181,40 +162,40 @@ cmake -B build \
   -DDMR_USE_TALP=1
 ```
 
-</TabItem>
-<TabItem value="slurm4dmr" label="Slurm4DMR">
-
-First of all, you need the custom Slurm that will run nested to the main Slurm job:
-
-```bash
-cd $SOURCES_DMR_PATH/tools/slurm4dmr
-export SLURM4DMR_ROOT=$HOME/.local/slurm4dmr # Edit to your liking
-cd custom-slurm
-./configure --prefix=$SLURM4DMR_ROOT --sysconfdir=$SLURM_ROOT/slurm-confdir --without-pmix --with-ssl=$OPENSSL_PATH
-make CFLAGS='-fcommon' CXXFLAGS='-fcommon' -j10
-make install
-```
-
-Then, DMR (see [Configuration](../user-guide/configuration) for the full list of flags):
-
-```bash
-cd $SOURCES_DMR_PATH
-cmake -B build \
-  -DCMAKE_INSTALL_PREFIX=$INSTALL_DMR_PATH \
-  -DSLURM4DMR=1 \
-cmake --build build -j10
-cmake --install build
-```
-
-Export SLURM4DMR_ROOT with the custom Slurm installation path and when using Slurm4DMR keep it in your environment (i.e., .bashrc).
-
-</TabItem>
-</Tabs>
-
 Remember to keep exported the installation PATH while using DMR with (i.e., .bashrc):
 ```bash
 export DMR_PATH=$INSTALL_DMR_PATH
 ```
+
+## 3. Build Slurm4DMR (optional)
+
+[Slurm4DMR](https://gitlab.bsc.es/accelcom/releases/dmr/tools/slurm4dmr) is a patched Slurm 25.05 that runs as a nested instance inside an allocation of the host Slurm. Its sources are in the `tools/slurm` submodule. Skip this step to run under the system Slurm only.
+
+On MareNostrum 5, load the pre-built module instead of building it:
+
+```bash
+module use /apps/GPP/DMR/dmr-modules
+module load slurm4dmr
+```
+
+It requires json-c (`json-c-devel`): PRRTE reads `scontrol show job --json` on every allocation change, so without json-c the DVM cannot grow. Install it on a filesystem shared by all nodes of an allocation.
+
+```bash
+export SDV3_PATH=$HOME/slurm4dmr-v3   # edit to your liking
+cd $SOURCES_DMR_PATH/tools/slurm
+mkdir build && cd build
+../slurm-src/configure --prefix=$SDV3_PATH --sysconfdir=$SDV3_PATH/etc \
+  --with-json=/path/to/json-c
+make -j10 && make install
+cd .. && bin/install-nested.sh --prefix $SDV3_PATH
+```
+
+- Always pass `--with-json`. `configure` ignores `C_INCLUDE_PATH` and `LIBRARY_PATH`, so loading a json-c module is not enough. Without the flag the build succeeds, but every DVM grow fails.
+- Keep the json-c library on `LD_LIBRARY_PATH` at run time.
+- Slurm bakes the prefix into its binaries. Build at the path the install will keep.
+- `install-nested.sh` stages the `slurm4dmr` command, renders a modulefile under `$SDV3_PATH/share/modulefiles`, and records the prefix in `~/.config/slurm4dmr/sdv3.conf`. For a site-wide install, add `--shared --jsonc <json-c prefix>`.
+
+The [Slurm4DMR README](https://gitlab.bsc.es/accelcom/releases/dmr/tools/slurm4dmr/-/blob/v3/README.md) covers the configuration knobs and debugging.
 
 :::info[More information]
 Adjust `-j10` to the number of build jobs you want. 

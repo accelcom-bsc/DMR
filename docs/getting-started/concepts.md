@@ -20,24 +20,20 @@ It is less suitable when:
 
 **If your application already implements checkpoint-restart**, DMR is trivially easy to adopt: hook your existing save/load logic into `redist_func` and `restart_func` and add `dmr_check` at the checkpoint point.
 
-DMR offers two modes of operation, which differ in how they interact with the resource manager.
+## Where DMR runs
 
-## Modes of operation
+The same DMR build runs under your **system's Slurm instance** or under Slurm4DMR. Your application runs as a regular Slurm job. DMR requests and releases nodes through PMIx, and PRRTE, the runtime that launched the application, passes the requests on to Slurm.
 
-### Production environment with DMR@Jobs
-
-DMR@Jobs connects to your **system's default Slurm instance**. Your application runs as a regular Slurm job and DMR requests node additions or removals through the standard Slurm API.
-
-### Controlled environment with Slurm4DMR
+### Nested Slurm with Slurm4DMR
 
 Slurm4DMR runs a **nested Slurm instance** inside a fixed resource allocation managed by the outer resource manager. Your job owns a fixed set of nodes, and Slurm4DMR reassigns them internally as the application expands or shrinks.
 
 :::note
-Slurm4DMR is currently only intended to run on **MareNostrum 5**.
+Slurm4DMR has only been tested on **MareNostrum 5**. Compatibility with other systems may vary.
 :::
 
 :::info[Not yet documented]
-When to use Slurm4DMR vs DMR@Jobs is not yet fully documented. For guidance contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
+When to use Slurm4DMR is not yet documented. For guidance contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
 :::
 
 
@@ -97,7 +93,7 @@ while (my_iteration < max_iterations) {
 }
 ```
 
-**If you do not have checkpoint-restart**, you need to implement save and load from scratch. The key question is whether saving your state to disk at each potential reconfiguration point is affordable. If it is, proceed. If the state is too large or the I/O cost is too high, consider the [intercommunicator mode](../user-guide/data-redistribution#intercommunicator) instead.
+**If you do not have checkpoint-restart**, you need to implement save and load from scratch. The key question is whether saving your state to disk at each potential reconfiguration point is affordable. If it is, proceed. If the state is too large or the I/O cost is too high, send it over the [intercommunicator](../user-guide/data-redistribution#spawn-intercommunicator) instead, which the default spawn mechanism provides.
 
 For a full explanation of the lifecycle and the `DMR_AUTO` macro see [Application Structure](../user-guide/app-structure).
 
