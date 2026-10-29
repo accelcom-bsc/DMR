@@ -132,7 +132,7 @@ git clone https://gitlab.bsc.es/accelcom/releases/dmr/dmr.git
 cd dmr
 ```
 
-The submodules provide the **examples** (optional). Download them with:
+The submodules provide the **Slurm4DMR** sources and the **examples**, both optional. Download them with:
 ```bash
 git submodule update --init --recursive
 ```
@@ -162,12 +162,40 @@ cmake -B build \
   -DDMR_USE_TALP=1
 ```
 
-Slurm4DMR is installed separately from DMR. For its setup, contact us at [accelcom@bsc.es](mailto:accelcom@bsc.es).
-
 Remember to keep exported the installation PATH while using DMR with (i.e., .bashrc):
 ```bash
 export DMR_PATH=$INSTALL_DMR_PATH
 ```
+
+## 3. Build Slurm4DMR (optional)
+
+[Slurm4DMR](https://gitlab.bsc.es/accelcom/releases/dmr/tools/slurm4dmr) is a patched Slurm 25.05 that runs as a nested instance inside an allocation of the host Slurm. Its sources are in the `tools/slurm` submodule. Skip this step to run under the system Slurm only.
+
+On MareNostrum 5, load the pre-built module instead of building it:
+
+```bash
+module use /apps/GPP/DMR/dmr-modules
+module load slurm4dmr
+```
+
+It requires json-c (`json-c-devel`): PRRTE reads `scontrol show job --json` on every allocation change, so without json-c the DVM cannot grow. Install it on a filesystem shared by all nodes of an allocation.
+
+```bash
+export SDV3_PATH=$HOME/slurm4dmr-v3   # edit to your liking
+cd $SOURCES_DMR_PATH/tools/slurm
+mkdir build && cd build
+../slurm-src/configure --prefix=$SDV3_PATH --sysconfdir=$SDV3_PATH/etc \
+  --with-json=/path/to/json-c
+make -j10 && make install
+cd .. && bin/install-nested.sh --prefix $SDV3_PATH
+```
+
+- Always pass `--with-json`. `configure` ignores `C_INCLUDE_PATH` and `LIBRARY_PATH`, so loading a json-c module is not enough. Without the flag the build succeeds, but every DVM grow fails.
+- Keep the json-c library on `LD_LIBRARY_PATH` at run time.
+- Slurm bakes the prefix into its binaries. Build at the path the install will keep.
+- `install-nested.sh` stages the `slurm4dmr` command, renders a modulefile under `$SDV3_PATH/share/modulefiles`, and records the prefix in `~/.config/slurm4dmr/sdv3.conf`. For a site-wide install, add `--shared --jsonc <json-c prefix>`.
+
+The [Slurm4DMR README](https://gitlab.bsc.es/accelcom/releases/dmr/tools/slurm4dmr/-/blob/v3/README.md) covers the configuration knobs and debugging.
 
 :::info[More information]
 Adjust `-j10` to the number of build jobs you want. 

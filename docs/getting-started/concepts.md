@@ -29,7 +29,7 @@ The same DMR build runs under your **system's Slurm instance** or under Slurm4DM
 Slurm4DMR runs a **nested Slurm instance** inside a fixed resource allocation managed by the outer resource manager. Your job owns a fixed set of nodes, and Slurm4DMR reassigns them internally as the application expands or shrinks.
 
 :::note
-Slurm4DMR is currently only intended to run on **MareNostrum 5**.
+Slurm4DMR has only been tested on **MareNostrum 5**. Compatibility with other systems may vary.
 :::
 
 :::info[Not yet documented]
