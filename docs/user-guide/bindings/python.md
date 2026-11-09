@@ -14,7 +14,7 @@ This page explains how to install the bindings and how to write and launch a mal
 
 ### 1. DMR
 
-The package needs a built DMR, with `$DMR_PATH` pointing at its install prefix (`$DMR_PATH/lib/libdmr.so`), or `libdmr.so` on the library search path. See [Installation](../../getting-started/installation), or use `module load dmr` on MN5. `import dmr` works without it; the first call into DMR fails with instructions.
+The package needs a built DMR, with `$DMR_PATH` pointing at its install prefix (`$DMR_PATH/lib/libdmr.so`), or `libdmr.so` on the library search path. See [Installation](../../getting-started/installation), or use `module load dmr/3.0.0-alpha` on MN5. `import dmr` works without it; the first call into DMR fails with instructions.
 
 ### 2. Python and mpi4py
 

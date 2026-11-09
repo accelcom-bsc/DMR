@@ -39,7 +39,7 @@ The Makefile expects `DMR_PATH` to point to the DMR installation, and compiles w
 On MN5, use the pre-built DMR module:
 
 ```bash
-module load dmr
+module load dmr/3.0.0-alpha
 ```
 
 Check that the module exported `DMR_PATH`:

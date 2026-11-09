@@ -14,7 +14,7 @@ This page explains how to install the bindings and how to write and launch a mal
 
 ### 1. DMR
 
-`DMR.jl` needs a built DMR, with `$DMR_PATH` pointing at its install prefix (the library must be at `$DMR_PATH/lib/libdmr.so`). See [Installation](../../getting-started/installation), or use `module load dmr` on MN5. `using DMR` fails immediately, with instructions, if the library cannot be found.
+`DMR.jl` needs a built DMR, with `$DMR_PATH` pointing at its install prefix (the library must be at `$DMR_PATH/lib/libdmr.so`). See [Installation](../../getting-started/installation), or use `module load dmr/3.0.0-alpha` on MN5. `using DMR` fails immediately, with instructions, if the library cannot be found.
 
 ### 2. Julia
 
