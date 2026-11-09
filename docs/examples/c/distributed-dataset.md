@@ -145,21 +145,21 @@ The output should show rank 0 reporting each step, the dataset being validated a
 ```text
 + /usr/local/bin/dmr_wrapper mpirun --host mc-slurmd-1:2,mc-slurmd-2:2,mc-slurmd-3:2,mc-slurmd-4:2 ./sleepOf 8 100
 Validated the distributed dataset.
-[1/8] COMPUTE: sleepOf.c(main,465) - Step 1 doing a sleep of 1.00 seconds (bytes per rank 1024)
+[1/8] COMPUTE: sleepOf.c(main,462) - Step 1 doing a sleep of 1.00 seconds (bytes per rank 1024)
 Checkpointing using MPI-IO functionality
 Restarting using MPI-IO functionality
 Validated the distributed dataset.
-[1/2] COMPUTE: sleepOf.c(main,465) - Step 2 doing a sleep of 4.00 seconds (bytes per rank 4096)
+[1/2] COMPUTE: sleepOf.c(main,462) - Step 2 doing a sleep of 4.00 seconds (bytes per rank 4096)
 [1/2] Still waiting for resources to expand
 Checkpointing using MPI-IO functionality
 Restarting using MPI-IO functionality
 Validated the distributed dataset.
-[1/4] COMPUTE: sleepOf.c(main,465) - Step 3 doing a sleep of 2.00 seconds (bytes per rank 2048)
+[1/4] COMPUTE: sleepOf.c(main,462) - Step 3 doing a sleep of 2.00 seconds (bytes per rank 2048)
 [1/4] Still waiting for resources to expand
 Checkpointing using MPI-IO functionality
 Restarting using MPI-IO functionality
 Validated the distributed dataset.
-[1/8] COMPUTE: sleepOf.c(main,465) - Step 4 doing a sleep of 1.00 seconds (bytes per rank 1024)
+[1/8] COMPUTE: sleepOf.c(main,462) - Step 4 doing a sleep of 1.00 seconds (bytes per rank 1024)
 ...
 ```
 

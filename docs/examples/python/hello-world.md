@@ -63,7 +63,7 @@ export DMR_PATH=$(pwd)/build/install
 ```
 
 :::note
-The image also has an older DMR preinstalled under `/usr/local`. Building from the submodule makes sure the bindings run against the DMR version they were generated from.
+The image also ships a prebuilt DMR under `/usr/local`, which is what the C examples use. Building from the submodule makes sure the bindings run against exactly the DMR version they were generated from.
 :::
 
 ## Step 4: Set up Python
@@ -125,7 +125,7 @@ Each `generation` line is a new launch of the program: `reconfig` counts the rec
 To print only the example's lines, filter the output:
 
 ```bash
-srun -N1 --exclusive tests/e2e/run_app.sh hello_world.py | grep '^\[py\]'
+srun -N1 --exclusive tests/e2e/run_app.sh hello_world.py 2>&1 | grep '^\[py\]'
 ```
 
 ## Step 6: Stop the cluster
