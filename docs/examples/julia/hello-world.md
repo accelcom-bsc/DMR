@@ -1,9 +1,10 @@
 ---
-sidebar_position: 3
+sidebar_position: 1
+sidebar_label: Hello World
 title: Julia Hello World
 ---
 
-A minimal malleable program written in Julia with the [Julia Bindings](../api/julia-bindings). It grows from 1 to 3 nodes and shrinks back to 1, without moving any application data, so you can see a DMR reconfiguration from Julia end to end.
+A minimal malleable program written in Julia with the [Julia Bindings](../../user-guide/bindings/julia). It grows from 1 to 3 nodes and shrinks back to 1, without moving any application data, so you can see a DMR reconfiguration from Julia end to end.
 
 Source: [`tests/integration/hello_world.jl`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr/-/blob/main/tests/integration/hello_world.jl) in the `julia-dmr` repository.
 
@@ -18,7 +19,7 @@ Source: [`tests/integration/hello_world.jl`](https://gitlab.bsc.es/accelcom/rele
 
 You only need three things on your machine:
 
-- **Docker** and **[MiniDMR](../user-guide/minidmr)**, which together give you a small Slurm cluster in containers.
+- **Docker** and **[MiniDMR](../../user-guide/minidmr)**, which together give you a small Slurm cluster in containers.
 - **Julia**, installed with [juliaup](https://github.com/JuliaLang/juliaup):
 
   ```bash
@@ -181,14 +182,14 @@ exit(0)
 
 1. `dmr_init()` connects the program to DMR. In a relaunched generation, this is also where DMR would hand over data from the previous one; this example has none.
 2. Every generation runs the program from the top. `dmr_get_reconfig_count()` tells it how many reconfigurations have already happened, which is how it knows where it is in the 1, 2, 3, 2, 1 sequence.
-3. The program decides the next size itself, with [manual control](../user-guide/policies/manual-control): it tells DMR how many nodes to add or remove.
+3. The program decides the next size itself, with [manual control](../../user-guide/policies/manual-control): it tells DMR how many nodes to add or remove.
 4. `reconfigure!` calls `dmr_check` until DMR answers with an action, then hands that action to `dmr_auto`. Requests to Slurm are asynchronous, so the first answers are usually "no action yet" while Slurm grants the nodes. When the reconfiguration happens, `dmr_auto` ends this generation, and DMR relaunches the program on the new nodes.
 5. In the last generation, `dmr_finalize` closes DMR, and `exit(0)` ends the process explicitly, because Julia can crash during its own shutdown after `MPI.Finalize()`.
 
-Functions that come straight from DMR's C API, such as `dmr_check` or `dmr_get_reconfig_count`, are in the `DMRBindings` module with the same names as in the [Core API](../api/core-api). `dmr_init` and `dmr_auto` are written by hand in Julia; see [Julia Bindings](../api/julia-bindings#how-the-bindings-are-built) for why.
+Functions that come straight from DMR's C API, such as `dmr_check` or `dmr_get_reconfig_count`, are in the `DMRBindings` module with the same names as in the [Core API](../../api/core-api). `dmr_init` and `dmr_auto` are written by hand in Julia; see [Julia Bindings](../../user-guide/bindings/julia#how-the-bindings-are-built) for why.
 
 ## Key points
 
-- Every reconfiguration relaunches the program. Anything you need to keep across a resize has to be passed explicitly, which is what [Julia Distributed Dataset](julia-distributed-dataset) shows.
+- Every reconfiguration relaunches the program. Anything you need to keep across a resize has to be passed explicitly, which is what [Julia Distributed Dataset](distributed-dataset) shows.
 - `dmr_check` is polled every 2 seconds, up to 30 times. If DMR never acts, the program cancels the pending request instead of leaving nodes reserved.
 - The functions that set the next size only act on rank 0. The other ranks get `DMR_ERROR_NOT_ROOT` back, which the program treats as success.

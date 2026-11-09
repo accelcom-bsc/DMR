@@ -123,7 +123,7 @@ It is especially relevant when an application has phases with different computat
 ## Where to go next
 
 - Continue to the [installation guide](../getting-started/installation) to set up DMR in your environment.
-- Open the [example codes](../examples/hello-world) to see how DMR is used.
+- Open the [example codes](../examples/c/hello-world) to see how DMR is used.
 - Read the [user guide](../user-guide/app-structure) to understand application structure and data redistribution.
 - Use the [API reference](../api/core-api) when integrating DMR into your own code.
 

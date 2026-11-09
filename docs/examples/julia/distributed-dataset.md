@@ -1,14 +1,15 @@
 ---
-sidebar_position: 4
+sidebar_position: 2
+sidebar_label: Distributed Dataset
 title: Julia Distributed Dataset
 ---
 
-A malleable Julia program that keeps a distributed array consistent while the job grows and shrinks. On every reconfiguration, the old processes send their part of the array directly to the new ones over MPI, and the new ones check that every element arrived. It is the Julia counterpart of [Distributed Dataset](distributed-dataset).
+A malleable Julia program that keeps a distributed array consistent while the job grows and shrinks. On every reconfiguration, the old processes send their part of the array directly to the new ones over MPI, and the new ones check that every element arrived. It is the Julia counterpart of [Distributed Dataset](../c/distributed-dataset).
 
 Source: [`tests/integration/dataset.jl`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr/-/blob/main/tests/integration/dataset.jl) in the `julia-dmr` repository.
 
 :::tip
-Run [Julia Hello World](julia-hello-world) first. This example uses the same cluster, the same DMR build and the same Julia setup, so if you have done that one, you can go straight to [step 3](#step-3-run-the-example).
+Run [Julia Hello World](hello-world) first. This example uses the same cluster, the same DMR build and the same Julia setup, so if you have done that one, you can go straight to [step 3](#step-3-run-the-example).
 :::
 
 ## What it does
@@ -20,7 +21,7 @@ Run [Julia Hello World](julia-hello-world) first. This example uses the same clu
 
 ## Step 1: Prepare the cluster
 
-If you do not have a cluster from [Julia Hello World](julia-hello-world) running, repeat its [steps 1 to 4](julia-hello-world#step-1-get-the-code): clone the repository, start the cluster, build DMR, and set up Julia. In short:
+If you do not have a cluster from [Julia Hello World](hello-world) running, repeat its [steps 1 to 4](hello-world#step-1-get-the-code): clone the repository, start the cluster, build DMR, and set up Julia. In short:
 
 ```bash
 cd ~/julia-dmr
@@ -37,7 +38,7 @@ export DMR_PATH=$(pwd)/build/install
 export PATH=$HOME/.juliaup/bin:$PATH
 ```
 
-This example needs DMR's `spawn` reconfiguration mechanism, which is what keeps the old and new processes connected long enough to send data between them. It is the default, so the build from [Julia Hello World](julia-hello-world#step-3-build-dmr-inside-the-cluster) already has it.
+This example needs DMR's `spawn` reconfiguration mechanism, which is what keeps the old and new processes connected long enough to send data between them. It is the default, so the build from [Julia Hello World](hello-world#step-3-build-dmr-inside-the-cluster) already has it.
 
 ## Step 3: Run the example
 
@@ -77,7 +78,7 @@ minidmr stop
 
 ## How the data moves
 
-The data is sent through DMR's *intercommunicator*: an MPI communicator that connects the processes of the old generation with those of the new one during a reconfiguration. See [Data Redistribution](../user-guide/data-redistribution#intercommunicator) for the full picture.
+The data is sent through DMR's *intercommunicator*: an MPI communicator that connects the processes of the old generation with those of the new one during a reconfiguration. See [Data Redistribution](../../user-guide/data-redistribution#intercommunicator) for the full picture.
 
 The program gives DMR two functions, one for each side of the move:
 
@@ -104,4 +105,4 @@ Both sides use a single `MPI_Alltoallv`: each process works out which part of it
 - `dmr_intercomm()` only works inside the `redist` and `restart` functions, while the two generations are connected.
 - Checking every element after every move means a redistribution bug fails right away instead of silently corrupting data.
 - The array size does not need to divide evenly by the number of processes: the first processes take one extra element each.
-- This example moves data in memory only. The C [Distributed Dataset](distributed-dataset) also shows how to do it through files.
+- This example moves data in memory only. The C [Distributed Dataset](../c/distributed-dataset) also shows how to do it through files.

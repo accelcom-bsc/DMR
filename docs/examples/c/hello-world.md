@@ -29,7 +29,7 @@ cd hello-world
 git switch v3
 ```
 
-The Makefile expects `DMR_PATH` to point to the DMR installation, and compiles with `-DDMR_WITH_TEST_POLICIES` so the built-in round policy (`dmr_get_policy_round`) is declared; see [Policy Headers](../api/policy-headers).
+The Makefile expects `DMR_PATH` to point to the DMR installation, and compiles with `-DDMR_WITH_TEST_POLICIES` so the built-in round policy (`dmr_get_policy_round`) is declared; see [Policy Headers](../../api/policy-headers).
 
 ## Choose an execution mode
 
@@ -138,7 +138,7 @@ Goodbye world from rank 0 on mc-slurmd-1. DMR's reconfiguration count is 4.
 
 ## Key points
 
-- Reconfiguration bounds and stride for the round policy come from `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX` and `DMR_DEFAULT_POLICY_STRIDE`, read when `dmr_set_policy(dmr_get_policy_round())` registers the policy; they are not set in the source. See [Built-in Policies](../user-guide/policies/dmr-policies).
+- Reconfiguration bounds and stride for the round policy come from `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX` and `DMR_DEFAULT_POLICY_STRIDE`, read when `dmr_set_policy(dmr_get_policy_round())` registers the policy; they are not set in the source. See [Built-in Policies](../../user-guide/policies/dmr-policies).
 - `restart` prints that the rank restarted; a real program would reload or rebuild its data.
 - `checkpoint` prints that the rank checkpointed; a real program would save or transfer data before reconfiguration.
 - `finalize` prints that the rank is about to exit; a real program would release resources.

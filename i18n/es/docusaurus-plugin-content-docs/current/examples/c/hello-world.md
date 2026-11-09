@@ -84,7 +84,7 @@ Este modo usa `TEST_POLICY`. Se expande a un nuevo trabajo Slurm, se reduce de n
   </TabItem>
   <TabItem value="slurm4dmr" label="Slurm4DMR">
 
-Slurm4DMR ejecuta una instancia Slurm anidada dentro de una asignación externa de MN5. A diferencia de DMR@Jobs, requiere instalar Slurm4DMR manualmente antes; consulta [Instalación](../getting-started/installation#2-compilar-dmr).
+Slurm4DMR ejecuta una instancia Slurm anidada dentro de una asignación externa de MN5. A diferencia de DMR@Jobs, requiere instalar Slurm4DMR manualmente antes; consulta [Instalación](../../getting-started/installation#2-compilar-dmr).
 
 Después de instalar DMR con soporte Slurm4DMR y el Slurm personalizado, carga los módulos de dependencias de MN5:
 

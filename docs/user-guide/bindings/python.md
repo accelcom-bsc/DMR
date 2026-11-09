@@ -1,5 +1,6 @@
 ---
-sidebar_position: 4
+sidebar_position: 2
+sidebar_label: Python
 title: Python Bindings
 ---
 
@@ -7,11 +8,13 @@ The `dmr` Python package gives Python programs access to DMR's C API, so an `mpi
 
 The package is pure Python on top of `ctypes`: nothing is compiled when it is installed, and the only thing it needs from DMR at run time is an installed `libdmr.so`. The same package works on any machine, against the DMR built for that machine.
 
+This page explains how to install the bindings and how to write and launch a malleable program. For every function and type, see the [Python API](../../api/python-api) reference.
+
 ## Installing
 
 ### 1. DMR
 
-The package needs a built DMR, with `$DMR_PATH` pointing at its install prefix (`$DMR_PATH/lib/libdmr.so`), or `libdmr.so` on the library search path. See [Installation](../getting-started/installation), or use `module load dmr` on MN5. `import dmr` works without it; the first call into DMR fails with instructions.
+The package needs a built DMR, with `$DMR_PATH` pointing at its install prefix (`$DMR_PATH/lib/libdmr.so`), or `libdmr.so` on the library search path. See [Installation](../../getting-started/installation), or use `module load dmr` on MN5. `import dmr` works without it; the first call into DMR fails with instructions.
 
 ### 2. Python and mpi4py
 
@@ -32,10 +35,10 @@ Or, to work on the bindings themselves, `pip install -e /path/to/python-dmr` fro
 
 ## Running an example on MiniDMR
 
-The repository ships two complete malleable programs, which are also its tests. Each has a step-by-step tutorial that runs it on a local [MiniDMR](../user-guide/minidmr) cluster, with nothing but Docker and MiniDMR on your machine:
+The repository ships two complete malleable programs, which are also its tests. Each has a step-by-step tutorial that runs it on a local [MiniDMR](../../user-guide/minidmr) cluster, with nothing but Docker and MiniDMR on your machine:
 
-- [Python Hello World](../examples/python-hello-world): grows from 1 to 3 nodes and shrinks back to 1, without moving any data. Start here.
-- [Python Distributed Dataset](../examples/python-distributed-dataset): the same, while moving a distributed array between generations over DMR's intercommunicator.
+- [Python Hello World](../../examples/python/hello-world): grows from 1 to 3 nodes and shrinks back to 1, without moving any data. Start here.
+- [Python Distributed Dataset](../../examples/python/distributed-dataset): the same, while moving a distributed array between generations over DMR's intercommunicator.
 
 If you work on the bindings themselves, `nix develop` in the `python-dmr` repository provides `just` and `minidmr`, and one command runs both programs on a temporary cluster that is stopped afterwards:
 
@@ -62,7 +65,7 @@ while work_left():
 dmr.auto(dmr.finalize())
 ```
 
-- `dmr.init` and `dmr.auto` take the same three optional callbacks as [`DMR_AUTO`](core-api) in C: `redist` (send data out, on the old generation), `restart` (receive it, on the new one) and `finalize` (release resources on the last one).
+- `dmr.init` and `dmr.auto` take the same three optional callbacks as [`DMR_AUTO`](../../api/core-api) in C: `redist` (send data out, on the old generation), `restart` (receive it, on the new one) and `finalize` (release resources on the last one).
 - `dmr.auto` ends the process whenever DMR reports that the current generation is done. Code after it does not run in a generation being replaced. It flushes `stdout` and `stderr` first, since DMR exits through C's `exit()` and skips Python's own shutdown.
 - Inside `redist` and `restart`, `dmr.intercomm()` returns the intercommunicator between the old and new generations as an `mpi4py` `MPI.Intercomm`. It is only available with DMR's default `spawn` mechanism (`DMR_MECHANISM=spawn`). DMR owns it: do not free or disconnect it.
 
@@ -94,7 +97,7 @@ The C API is also available one to one, with C names and `ctypes` types, in `dmr
 
 ## Limitations
 
-- **Policies written in Python are not supported yet.** A policy callback returns a `DMRPolicySuggestion` by value, and `ctypes` cannot create callbacks that return a struct. The built-in policies work (`dmr.get_policy_list()`, `dmr.set_policy(...)`), as does [manual control](../user-guide/policies/manual-control).
+- **Policies written in Python are not supported yet.** A policy callback returns a `DMRPolicySuggestion` by value, and `ctypes` cannot create callbacks that return a struct. The built-in policies work (`dmr.get_policy_list()`, `dmr.set_policy(...)`), as does [manual control](../../user-guide/policies/manual-control).
 
 ## How the bindings are built
 

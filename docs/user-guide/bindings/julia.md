@@ -1,5 +1,6 @@
 ---
-sidebar_position: 3
+sidebar_position: 1
+sidebar_label: Julia
 title: Julia Bindings
 ---
 
@@ -7,11 +8,13 @@ title: Julia Bindings
 
 `libdmr` is never shipped with the package. It is located through `$DMR_PATH` when the module loads, so the same package works against any DMR installation built for the machine it runs on.
 
+This page explains how to install the bindings and how to write and launch a malleable program. For every function and type, see the [Julia API](../../api/julia-api) reference.
+
 ## Installing
 
 ### 1. DMR
 
-`DMR.jl` needs a built DMR, with `$DMR_PATH` pointing at its install prefix (the library must be at `$DMR_PATH/lib/libdmr.so`). See [Installation](../getting-started/installation), or use `module load dmr` on MN5. `using DMR` fails immediately, with instructions, if the library cannot be found.
+`DMR.jl` needs a built DMR, with `$DMR_PATH` pointing at its install prefix (the library must be at `$DMR_PATH/lib/libdmr.so`). See [Installation](../../getting-started/installation), or use `module load dmr` on MN5. `using DMR` fails immediately, with instructions, if the library cannot be found.
 
 ### 2. Julia
 
@@ -47,10 +50,10 @@ This writes a `LocalPreferences.toml` next to `Project.toml`. Either command may
 
 ## Running an example on MiniDMR
 
-The repository ships two complete malleable programs, which are also its tests. Each has a step-by-step tutorial that runs it on a local [MiniDMR](../user-guide/minidmr) cluster, with nothing but Docker and MiniDMR and Julia on your machine:
+The repository ships two complete malleable programs, which are also its tests. Each has a step-by-step tutorial that runs it on a local [MiniDMR](../../user-guide/minidmr) cluster, with nothing but Docker and MiniDMR and Julia on your machine:
 
-- [Julia Hello World](../examples/julia-hello-world): grows from 1 to 3 nodes and shrinks back to 1, without moving any data. Start here.
-- [Julia Distributed Dataset](../examples/julia-distributed-dataset): the same, while moving a distributed array between generations over DMR's intercommunicator.
+- [Julia Hello World](../../examples/julia/hello-world): grows from 1 to 3 nodes and shrinks back to 1, without moving any data. Start here.
+- [Julia Distributed Dataset](../../examples/julia/distributed-dataset): the same, while moving a distributed array between generations over DMR's intercommunicator.
 
 If you work on the bindings themselves, `nix develop` in the `julia-dmr` repository provides `just` and `minidmr`, and one command runs both programs on a temporary cluster that is stopped afterwards:
 
@@ -80,10 +83,10 @@ MPI.Finalize()
 exit(0)
 ```
 
-- `dmr_init` and `dmr_auto` take the same three optional callbacks as [`DMR_AUTO`](core-api) in C: `redist` (send data out, on the old generation), `restart` (receive it, on the new one) and `finalize` (release resources on the last one).
+- `dmr_init` and `dmr_auto` take the same three optional callbacks as [`DMR_AUTO`](../../api/core-api) in C: `redist` (send data out, on the old generation), `restart` (receive it, on the new one) and `finalize` (release resources on the last one).
 - `dmr_auto` terminates the process itself, through `MPI.Finalize()` and `exit()`, whenever DMR reports that the current generation is done. Code after it does not run in a generation being replaced.
 - Inside `redist` and `restart`, `dmr_intercomm()` returns the intercommunicator between the old and new generations. It is only available with DMR's default `spawn` mechanism (`DMR_MECHANISM=spawn`).
-- The rest of the C API is in the `DMRBindings` submodule under its C names: `DMRBindings.dmr_check`, `DMRBindings.dmr_get_reconfig_count`, `DMRBindings.SHOULD_EXPAND`, and so on. See [Core API](core-api).
+- The rest of the C API is in the `DMRBindings` submodule under its C names: `DMRBindings.dmr_check`, `DMRBindings.dmr_get_reconfig_count`, `DMRBindings.SHOULD_EXPAND`, and so on. See [Core API](../../api/core-api).
 - `exit(0)` at the end is deliberate: Julia's task scheduler can segfault at teardown after `MPI_Finalize`.
 
 Launch it through DMR's wrapper, not a plain `mpirun`:

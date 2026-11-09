@@ -1,9 +1,10 @@
 ---
-sidebar_position: 5
+sidebar_position: 1
+sidebar_label: Hello World
 title: Python Hello World
 ---
 
-A minimal malleable program written in Python with the [Python Bindings](../api/python-bindings). It grows from 1 to 3 nodes and shrinks back to 1, without moving any application data, so you can see a DMR reconfiguration from Python end to end.
+A minimal malleable program written in Python with the [Python Bindings](../../user-guide/bindings/python). It grows from 1 to 3 nodes and shrinks back to 1, without moving any application data, so you can see a DMR reconfiguration from Python end to end.
 
 Source: [`tests/e2e/apps/hello_world.py`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr/-/blob/master/tests/e2e/apps/hello_world.py) in the `python-dmr` repository, with small helpers in `common.py` next to it.
 
@@ -16,7 +17,7 @@ Source: [`tests/e2e/apps/hello_world.py`](https://gitlab.bsc.es/accelcom/release
 
 ## Prerequisites
 
-You only need **Docker** and **[MiniDMR](../user-guide/minidmr)** on your machine, which together give you a small Slurm cluster in containers. Python, `mpi4py` and DMR itself are all set up inside the cluster in the steps below.
+You only need **Docker** and **[MiniDMR](../../user-guide/minidmr)** on your machine, which together give you a small Slurm cluster in containers. Python, `mpi4py` and DMR itself are all set up inside the cluster in the steps below.
 
 ## Step 1: Get the code
 
@@ -165,14 +166,14 @@ dmr.auto(dmr.finalize())                  # (6)
 1. Importing `mpi4py.MPI` initialises MPI. DMR uses that same MPI.
 2. `dmr.init()` connects the program to DMR. In a relaunched generation, this is also where DMR would hand over data from the previous one; this example has none.
 3. Every generation runs the program from the top. `dmr.get_reconfig_count()` tells it how many reconfigurations have already happened, which is how it knows where it is in the 1, 2, 3, 2, 1 sequence.
-4. The program decides the next size itself, with [manual control](../user-guide/policies/manual-control): it tells DMR how many nodes to add or remove.
+4. The program decides the next size itself, with [manual control](../../user-guide/policies/manual-control): it tells DMR how many nodes to add or remove.
 5. `reconfigure` (in `common.py`) calls `dmr.check` until DMR answers with an action, then hands that action to `dmr.auto`. Requests to Slurm are asynchronous, so the first answers are usually `NO_ACTION` while Slurm grants the nodes. When the reconfiguration happens, `dmr.auto` ends this generation, and DMR relaunches the program on the new nodes.
 6. In the last generation, `dmr.finalize()` closes DMR and ends the process.
 
-The Python names follow DMR's C API without the `dmr_` prefix: `dmr_check` is `dmr.check`, `SHOULD_EXPAND` is `dmr.Suggestion.SHOULD_EXPAND`. Errors raise `dmr.DMRError` instead of returning a status. See [Python Bindings](../api/python-bindings#mapping-from-the-c-api) for the full mapping.
+The Python names follow DMR's C API without the `dmr_` prefix: `dmr_check` is `dmr.check`, `SHOULD_EXPAND` is `dmr.Suggestion.SHOULD_EXPAND`. Errors raise `dmr.DMRError` instead of returning a status. See [Python Bindings](../../user-guide/bindings/python#mapping-from-the-c-api) for the full mapping.
 
 ## Key points
 
-- Every reconfiguration relaunches the program. Anything you need to keep across a resize has to be passed explicitly, which is what [Python Distributed Dataset](python-distributed-dataset) shows.
+- Every reconfiguration relaunches the program. Anything you need to keep across a resize has to be passed explicitly, which is what [Python Distributed Dataset](distributed-dataset) shows.
 - `dmr.check` is polled every 2 seconds, up to 30 times. If DMR never acts, the program cancels the pending request instead of leaving nodes reserved.
 - The functions that set the next size only act on rank 0. On the other ranks they do nothing, and the bindings do not treat that as an error.

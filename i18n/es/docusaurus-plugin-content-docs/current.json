@@ -1,10 +1,14 @@
 {
   "version.label": {
-    "message": "Siguiente",
+    "message": "3.0.0 (alpha)",
     "description": "The label for version current"
   },
   "sidebar.userGuide.category.Policies": {
     "message": "Políticas",
     "description": "The label for category 'Policies' in sidebar 'userGuide'"
+  },
+  "sidebar.userGuide.category.Language Bindings": {
+    "message": "Bindings de lenguajes",
+    "description": "The label for category 'Language Bindings' in sidebar 'userGuide'"
   }
 }

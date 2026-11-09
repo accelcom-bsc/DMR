@@ -165,7 +165,7 @@ Validated the distributed dataset.
 
 ## Key points
 
-- Reconfiguration bounds and stride for the round policy come from `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX` and `DMR_DEFAULT_POLICY_STRIDE`, read when `dmr_set_policy(dmr_get_policy_round())` registers the policy; they are not set in the source. See [Built-in Policies](../user-guide/policies/dmr-policies).
+- Reconfiguration bounds and stride for the round policy come from `DMR_DEFAULT_POLICY_MIN`, `DMR_DEFAULT_POLICY_MAX` and `DMR_DEFAULT_POLICY_STRIDE`, read when `dmr_set_policy(dmr_get_policy_round())` registers the policy; they are not set in the source. See [Built-in Policies](../../user-guide/policies/dmr-policies).
 - `checkpoint`/`restart` **must** account for every element of the dataset; `validate_data` asserts on any mismatch, so a redistribution bug fails fast instead of silently corrupting data.
 - Because processes restart from the beginning of `main` on every reconfiguration (even in `IN_MEMORY` mode), progress is tracked via `dmr_get_reconfig_count()` rather than a local loop counter.
 - `SIZE` must be divisible by the initial world size; this is only checked on the very first launch (`dmr_get_reconfig_count() == 0`).
