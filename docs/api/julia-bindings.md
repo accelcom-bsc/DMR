@@ -3,9 +3,6 @@ sidebar_position: 3
 title: Julia Bindings
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 `DMR.jl` gives Julia programs access to DMR's C API, so an MPI program written in Julia can grow and shrink while it runs. It is a regular Julia package that lives in its own repository, [`julia-dmr`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr), separate from DMR itself.
 
 `libdmr` is never shipped with the package. It is located through `$DMR_PATH` when the module loads, so the same package works against any DMR installation built for the machine it runs on.
@@ -50,79 +47,15 @@ This writes a `LocalPreferences.toml` next to `Project.toml`. Either command may
 
 ## Running an example on MiniDMR
 
-The repository ships two complete malleable programs under `tests/integration/`, which are also its integration tests:
+The repository ships two complete malleable programs, which are also its tests. Each has a step-by-step tutorial that runs it on a local [MiniDMR](../user-guide/minidmr) cluster, with nothing but Docker and MiniDMR and Julia on your machine:
 
-- `hello_world.jl` grows from 1 to 3 nodes and shrinks back to 1, without moving any data. See [Julia Hello World](../examples/julia-hello-world).
-- `dataset.jl` does the same while redistributing a dataset over DMR's intercommunicator. See [Julia Distributed Dataset](../examples/julia-distributed-dataset).
+- [Julia Hello World](../examples/julia-hello-world): grows from 1 to 3 nodes and shrinks back to 1, without moving any data. Start here.
+- [Julia Distributed Dataset](../examples/julia-distributed-dataset): the same, while moving a distributed array between generations over DMR's intercommunicator.
 
-The quickest way to run them is a local [MiniDMR](../user-guide/minidmr) cluster. DMR is built *inside* the cluster from the `dmr/` submodule, which pins the DMR commit the bindings are tested against, so nothing but Docker, MiniDMR and Julia is needed on the host.
-
-Clone the repository with its submodule, somewhere under `$HOME` (MiniDMR mounts `$HOME` into every node, which is how the nodes see the repository and the Julia install):
+If you work on the bindings themselves, `nix develop` in the `julia-dmr` repository provides `just` and `minidmr`, and one command runs both programs on a temporary cluster that is stopped afterwards:
 
 ```bash
-git clone --recurse-submodules https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr.git ~/julia-dmr
-cd ~/julia-dmr
-```
-
-<Tabs groupId="bindings-run">
-  <TabItem value="just" label="One command">
-
-`nix develop` gives `just`, `minidmr` and `julia`. Then:
-
-```bash
-nix develop
-just int                  # both programs
-just int test=dataset.jl  # only one of them
-```
-
-`just int` starts a 4-node cluster, builds and installs DMR into `build/install`, sets up the Julia environment the first time, runs the programs, and stops the cluster on exit, whether they pass or fail.
-
-  </TabItem>
-  <TabItem value="manual" label="Step by step">
-
-Start a cluster. The programs grow to 3 nodes, so ask for at least that many:
-
-```bash
-minidmr start --nodes 4 -i registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-3.0.0
-```
-
-Build DMR from the submodule inside the cluster, so it runs against the container's compiler, MPI and PMIx:
-
-```bash
-minidmr exec -- bash -c '
-    cmake -B build/dmr -S dmr -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install &&
-    cmake --build build/dmr -j8 &&
-    cmake --install build/dmr'
-```
-
-Run a program. `tests/ci/run_integration.sh` points `MPI.jl` at the container's MPI the first time (step 4 above), then submits the program with `srun`:
-
-```bash
-minidmr exec -- bash -c '
-    export DMR_PATH=$(pwd)/build/install
-    tests/ci/run_integration.sh hello_world.jl'
-```
-
-Stop the cluster when you are done:
-
-```bash
-minidmr stop
-```
-
-  </TabItem>
-</Tabs>
-
-The job starts on one node and DMR asks Slurm for the rest. Rank 0 prints one `[julia]` line per event, between DMR's own debug and analytics output:
-
-```text
-[julia] generation reconfig=0 nodes=1 world_size=1
-[julia] expanding 1 -> 2 nodes
-[julia] generation reconfig=1 nodes=2 world_size=2
-[julia] expanding 2 -> 3 nodes
-[julia] generation reconfig=2 nodes=3 world_size=3
-[julia] shrinking 3 -> 2 nodes
-...
-[julia] last generation, nothing left to reconfigure
+just int                  # build DMR in MiniDMR and run both examples
 ```
 
 ## Writing a malleable program

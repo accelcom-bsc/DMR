@@ -3,9 +3,6 @@ sidebar_position: 4
 title: Python Bindings
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 The `dmr` Python package gives Python programs access to DMR's C API, so an `mpi4py` program can grow and shrink while it runs. It lives in its own repository, [`python-dmr`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr), separate from DMR itself.
 
 The package is pure Python on top of `ctypes`: nothing is compiled when it is installed, and the only thing it needs from DMR at run time is an installed `libdmr.so`. The same package works on any machine, against the DMR built for that machine.
@@ -35,86 +32,15 @@ Or, to work on the bindings themselves, `pip install -e /path/to/python-dmr` fro
 
 ## Running an example on MiniDMR
 
-The repository ships two complete malleable programs under `tests/e2e/apps/`, which are also its end-to-end tests:
+The repository ships two complete malleable programs, which are also its tests. Each has a step-by-step tutorial that runs it on a local [MiniDMR](../user-guide/minidmr) cluster, with nothing but Docker and MiniDMR on your machine:
 
-- `hello_world.py` grows from 1 to 3 nodes and shrinks back to 1, without moving any data. See [Python Hello World](../examples/python-hello-world).
-- `dataset.py` does the same while redistributing a dataset over DMR's intercommunicator. See [Python Distributed Dataset](../examples/python-distributed-dataset).
+- [Python Hello World](../examples/python-hello-world): grows from 1 to 3 nodes and shrinks back to 1, without moving any data. Start here.
+- [Python Distributed Dataset](../examples/python-distributed-dataset): the same, while moving a distributed array between generations over DMR's intercommunicator.
 
-The quickest way to run them is a local [MiniDMR](../user-guide/minidmr) cluster. DMR is built *inside* the cluster from the `dmr/` submodule, which pins the DMR commit the bindings are tested against. The MiniDMR image only ships Python 3.6, so a setup script fetches a recent CPython and builds a virtualenv with `mpi4py` and the package, all under `build/` in the repository. Nothing but Docker and MiniDMR is needed on the host.
-
-Clone the repository with its submodule, somewhere under `$HOME` (MiniDMR mounts `$HOME` into every node, which is how the nodes see the repository):
+If you work on the bindings themselves, `nix develop` in the `python-dmr` repository provides `just` and `minidmr`, and one command runs both programs on a temporary cluster that is stopped afterwards:
 
 ```bash
-git clone --recurse-submodules https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr.git ~/python-dmr
-cd ~/python-dmr
-```
-
-<Tabs groupId="bindings-run">
-  <TabItem value="just" label="One command">
-
-`nix develop` gives `just` and `minidmr`. Then:
-
-```bash
-nix develop
-just e2e               # both programs
-just e2e -k dataset    # only one of them (arguments go to pytest)
-```
-
-`just e2e` starts a 4-node cluster, builds and installs DMR into `build/install`, prepares the virtualenv in `build/e2e`, runs both programs through `pytest`, and stops the cluster on exit, whether they pass or fail. A program passes only if the generations it logs ran on exactly 1, 2, 3, 2 and 1 nodes.
-
-  </TabItem>
-  <TabItem value="manual" label="Step by step">
-
-Start a cluster. The programs grow to 3 nodes, so ask for at least that many:
-
-```bash
-minidmr start --nodes 4 -i registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-3.0.0
-```
-
-Build DMR from the submodule inside the cluster, so it runs against the container's compiler, MPI and PMIx:
-
-```bash
-minidmr exec -- bash -c '
-    cmake -B build/dmr -S dmr -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install &&
-    cmake --build build/dmr -j8 &&
-    cmake --install build/dmr'
-```
-
-Prepare the Python environment (CPython, a virtualenv, `mpi4py` built against the container's MPI, and this package). It only builds what is missing, so rerunning it is cheap:
-
-```bash
-minidmr exec -- tests/e2e/setup_env.sh
-```
-
-Run a program in its own Slurm allocation with `tests/e2e/run_app.sh`:
-
-```bash
-minidmr exec -- bash -c '
-    export DMR_PATH=$(pwd)/build/install
-    export E2E_PYTHON=$(pwd)/build/e2e/venv/bin/python
-    srun -N1 --exclusive tests/e2e/run_app.sh hello_world.py'
-```
-
-Stop the cluster when you are done:
-
-```bash
-minidmr stop
-```
-
-  </TabItem>
-</Tabs>
-
-The job starts on one node and DMR asks Slurm for the rest. Rank 0 prints one `[py]` line per event, between DMR's own debug and analytics output:
-
-```text
-[py] generation reconfig=0 nodes=1 world_size=1
-[py] expanding 1 -> 2 nodes
-[py] end of generation 0
-[py] generation reconfig=1 nodes=2 world_size=2
-[py] expanding 2 -> 3 nodes
-...
-[py] last generation, nothing left to reconfigure
-[py] end of generation 4
+just e2e                  # build DMR in MiniDMR and run both examples
 ```
 
 ## Writing a malleable program
