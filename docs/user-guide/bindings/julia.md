@@ -92,11 +92,11 @@ exit(0)
 Launch it through DMR's wrapper, not a plain `mpirun`:
 
 ```bash
-dmr_wrapper mpirun --host <hosts> -x PATH -x DMR_PATH \
+dmr mpirun --host <hosts> -x PATH -x DMR_PATH \
     julia -t 1 --project=/path/to/project myprogram.jl
 ```
 
-- `dmr_wrapper` is mandatory: DMR relaunches the program for every reconfiguration, and the wrapper keeps its state across generations.
+- `dmr` is mandatory: DMR relaunches the program for every reconfiguration, and the wrapper keeps its state across generations.
 - `-t 1` avoids the same scheduler segfault, and must match the thread count DMR passes to the relaunched `julia`.
 - `-x PATH -x DMR_PATH` let the processes DMR spawns for later generations find the same `julia` and the same DMR.
 

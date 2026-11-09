@@ -95,11 +95,11 @@ The job starts on a single node. While it runs, the program asks DMR for more no
 `run_app.sh` takes care of the launch command. It turns the Slurm allocation into a host list and runs:
 
 ```bash
-dmr_wrapper mpirun --host <hosts> -x PATH -x DMR_PATH \
+dmr mpirun --host <hosts> -x PATH -x DMR_PATH \
     build/e2e/venv/bin/python tests/e2e/apps/hello_world.py
 ```
 
-- `dmr_wrapper` is required: DMR relaunches the program on every reconfiguration, and the wrapper keeps DMR's state between those relaunches.
+- `dmr` is required: DMR relaunches the program on every reconfiguration, and the wrapper keeps DMR's state between those relaunches.
 - `-x PATH -x DMR_PATH` pass your environment to the processes DMR starts later, so they find the same DMR. DMR relaunches the exact Python that started the program, so every generation runs in the same virtual environment.
 
 ### Reading the output

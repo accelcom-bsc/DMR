@@ -72,10 +72,10 @@ dmr.auto(dmr.finalize())
 Launch it through DMR's wrapper, not a plain `mpirun`:
 
 ```bash
-dmr_wrapper mpirun --host <hosts> -x PATH -x DMR_PATH python myprogram.py
+dmr mpirun --host <hosts> -x PATH -x DMR_PATH python myprogram.py
 ```
 
-- `dmr_wrapper` is mandatory: DMR relaunches the program for every reconfiguration, and the wrapper keeps its state across generations.
+- `dmr` is mandatory: DMR relaunches the program for every reconfiguration, and the wrapper keeps its state across generations.
 - `-x PATH -x DMR_PATH` let the processes DMR spawns for later generations find the same `python` and the same DMR. The relaunch uses the exact interpreter that started the program (`sys.executable`), so a virtualenv's `python` is preserved.
 
 ## Mapping from the C API
