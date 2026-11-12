@@ -6,7 +6,7 @@ title: Python Distributed Dataset
 
 A malleable Python program that keeps a distributed array consistent while the job grows and shrinks. On every reconfiguration, the old processes send their part of the array directly to the new ones over MPI, and the new ones check that every element arrived. It is the Python counterpart of [Distributed Dataset](../c/distributed-dataset).
 
-Source: [`tests/e2e/apps/dataset.py`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr/-/blob/master/tests/e2e/apps/dataset.py) in the `python-dmr` repository.
+Source: [`tests/e2e/apps/dataset.py`](https://gitlab.bsc.es/accelcom/releases/dmr/bindings/python-dmr/-/blob/master/tests/e2e/apps/dataset.py) in the `python-dmr` repository.
 
 :::tip
 Run [Python Hello World](hello-world) first. This example uses the same cluster, the same DMR build and the same Python environment, so if you have done that one, you can go straight to [step 3](#step-3-run-the-example).

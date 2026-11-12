@@ -6,7 +6,7 @@ title: Julia Distributed Dataset
 
 A malleable Julia program that keeps a distributed array consistent while the job grows and shrinks. On every reconfiguration, the old processes send their part of the array directly to the new ones over MPI, and the new ones check that every element arrived. It is the Julia counterpart of [Distributed Dataset](../c/distributed-dataset).
 
-Source: [`tests/integration/dataset.jl`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr/-/blob/main/tests/integration/dataset.jl) in the `julia-dmr` repository.
+Source: [`tests/integration/dataset.jl`](https://gitlab.bsc.es/accelcom/releases/dmr/bindings/julia-dmr/-/blob/main/tests/integration/dataset.jl) in the `julia-dmr` repository.
 
 :::tip
 Run [Julia Hello World](hello-world) first. This example uses the same cluster, the same DMR build and the same Julia setup, so if you have done that one, you can go straight to [step 3](#step-3-run-the-example).

@@ -6,7 +6,7 @@ title: Julia Hello World
 
 A minimal malleable program written in Julia with the [Julia Bindings](../../user-guide/bindings/julia). It grows from 1 to 3 nodes and shrinks back to 1, without moving any application data, so you can see a DMR reconfiguration from Julia end to end.
 
-Source: [`tests/integration/hello_world.jl`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr/-/blob/main/tests/integration/hello_world.jl) in the `julia-dmr` repository.
+Source: [`tests/integration/hello_world.jl`](https://gitlab.bsc.es/accelcom/releases/dmr/bindings/julia-dmr/-/blob/main/tests/integration/hello_world.jl) in the `julia-dmr` repository.
 
 ## What it does
 
@@ -35,7 +35,7 @@ DMR itself is built inside the cluster in [step 3](#step-3-build-dmr-inside-the-
 Clone the `julia-dmr` repository with its submodule. Clone it somewhere under your `$HOME`, so that the cluster nodes can see it:
 
 ```bash
-git clone --recurse-submodules https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr.git ~/julia-dmr
+git clone --recurse-submodules https://gitlab.bsc.es/accelcom/releases/dmr/bindings/julia-dmr.git ~/julia-dmr
 cd ~/julia-dmr
 ```
 

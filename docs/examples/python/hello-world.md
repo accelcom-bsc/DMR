@@ -6,7 +6,7 @@ title: Python Hello World
 
 A minimal malleable program written in Python with the [Python Bindings](../../user-guide/bindings/python). It grows from 1 to 3 nodes and shrinks back to 1, without moving any application data, so you can see a DMR reconfiguration from Python end to end.
 
-Source: [`tests/e2e/apps/hello_world.py`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr/-/blob/master/tests/e2e/apps/hello_world.py) in the `python-dmr` repository, with small helpers in `common.py` next to it.
+Source: [`tests/e2e/apps/hello_world.py`](https://gitlab.bsc.es/accelcom/releases/dmr/bindings/python-dmr/-/blob/master/tests/e2e/apps/hello_world.py) in the `python-dmr` repository, with small helpers in `common.py` next to it.
 
 ## What it does
 
@@ -24,7 +24,7 @@ You only need **Docker** and **[MiniDMR](../../user-guide/minidmr)** on your mac
 Clone the `python-dmr` repository with its submodule. Clone it somewhere under your `$HOME`: MiniDMR mounts `$HOME` into every node of the cluster, which is how the nodes see the code.
 
 ```bash
-git clone --recurse-submodules https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr.git ~/python-dmr
+git clone --recurse-submodules https://gitlab.bsc.es/accelcom/releases/dmr/bindings/python-dmr.git ~/python-dmr
 cd ~/python-dmr
 ```
 
