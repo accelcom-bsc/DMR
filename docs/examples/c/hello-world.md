@@ -18,7 +18,7 @@ Source: the [`hello-world`](https://gitlab.bsc.es/accelcom/releases/dmr/examples
 4. Prints which rank is running, checkpointing, restarting, or exiting.
 5. Stops after `MAX_ITERS` reconfigurations.
 
-The same source can be compiled and launched for DMR@Jobs or MiniDMR.
+The same source can be compiled and launched on MareNostrum 5 or MiniDMR.
 
 ## Prerequisites
 
@@ -31,15 +31,15 @@ git switch v3
 
 The Makefile expects `DMR_PATH` to point to the DMR installation, and compiles with `-DDMR_WITH_TEST_POLICIES` so the built-in round policy (`dmr_get_policy_round`) is declared; see [Policy Headers](../../api/policy-headers).
 
-## Choose an execution mode
+## Choose where to run
 
 <Tabs groupId="hello-world-mode">
-  <TabItem value="dmrjobs" label="DMR@Jobs">
+  <TabItem value="mn5" label="MareNostrum 5">
 
-DMR@Jobs uses the system Slurm instance. On MN5, use the pre-built DMR module:
+On MN5, use the pre-built DMR module:
 
 ```bash
-module load dmr
+module load dmr/3.0.0-alpha
 ```
 
 Check that the module exported `DMR_PATH`:

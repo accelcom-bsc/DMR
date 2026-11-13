@@ -25,8 +25,8 @@ while (should_keep_running()) {
 |----------|-------------|
 | `dmr_get_current_node_count()` | Current node count in `MPI_COMM_WORLD` |
 | `dmr_get_reconfig_count()` | Number of reconfigurations since launch |
-| `dmr_get_active_expansions()` | Number of expansion jobs currently active |
-| `dmr_pending_expansion()` | `1` if an expansion is pending |
+| `dmr_get_active_allocations()` | Number of allocations DMR is running in, the one it launched in included |
+| `dmr_pending_expansion()` | `true` if an expansion is pending |
 | `dmr_set_nodes_next_expand(n)` | Request `n` nodes in the next expand |
 | `dmr_set_nodes_next_shrink(n)` | Remove `n` nodes in the next shrink |
 | `dmr_cancel_expansion()` | Cancel a pending expansion (collective) |
@@ -110,7 +110,7 @@ dmr_set_procs_next_expand(int procs);  // total processes across all new nodes
 dmr_set_ppn_next_expand(int ppn);      // processes per node
 dmr_set_nodes_next_shrink(int nodes);
 dmr_set_procs_next_shrink(int procs);
-dmr_set_jobs_next_shrink(int jobs);    // remove N whole expansion jobs
+dmr_set_allocs_next_shrink(int allocs); // release N whole allocations
 ```
 
 ## Cancelling a pending expansion

@@ -39,7 +39,7 @@ A reconfiguration produces two groups of processes, and `DMR_AUTO` runs a differ
 | **Leaving** ranks (the old world) | `dmr_reconfigure()` returns `DMR_REDIST_FINALIZE` | `redist_func` → `finalize_func` | `dmr_finalize()` — the rank **exits** |
 | **Spawned** ranks (the new world) | `dmr_init()` returns `DMR_RESTART_RECONF` | `restart_func` | `dmr_reconfigure()` — then continues into the loop |
 
-There is no third "surviving" group: the spawn creates an entirely new `MPI_COMM_WORLD` and every leaving rank exits. So `redist_func` is always your **send/save** side and `restart_func` is always your **receive/load** side. In intercommunicator mode (`DMR_CHECKPOINT_RESTART=0`) this ordering is also what keeps `DMR_INTERCOMM` valid in each callback — see [Data Redistribution](data-redistribution).
+There is no third "surviving" group: the spawn creates an entirely new `MPI_COMM_WORLD` and every leaving rank exits. So `redist_func` is always your **send/save** side and `restart_func` is always your **receive/load** side. Under the spawn mechanism this ordering is also what keeps `DMR_INTERCOMM` valid in each callback — see [Data Redistribution](data-redistribution).
 
 ## Usage examples
 
@@ -70,7 +70,7 @@ void save(void)
 }
 ```
 
-With `DMR_CHECKPOINT_RESTART=0`, send data directly via `DMR_INTERCOMM` instead of writing to disk. See [Data Redistribution](data-redistribution) for details.
+Under the spawn mechanism, you can send data directly via `DMR_INTERCOMM` instead of writing to disk. See [Data Redistribution](data-redistribution) for details.
 
 ### restart_func: restore state after restart
 

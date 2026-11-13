@@ -37,7 +37,7 @@ Each analytics line has the following CSV format:
 | `node_count` | int | Number of nodes in `MPI_COMM_WORLD` |
 | `reconfig_time` | float | Seconds to complete the last reconfiguration, or `-1` if not applicable |
 | `ce` | float | Last TALP accumulated communication efficiency, or `-1` if not available |
-| `pending_nodes` | int | Nodes requested from Slurm but not yet allocated |
+| `pending_nodes` | int | Nodes requested but not yet granted |
 
 Example line:
 
@@ -52,32 +52,34 @@ Example line:
 | `DMR_EVENT_NONE` | No event yet |
 | `DMR_EVENT_INIT_COMPLETE` | `dmr_init` completed |
 | `DMR_EVENT_CHECK_CALLED` | `dmr_check` was called |
-| `DMR_EVENT_STAY_CURRENT` | Policy decided to stay at current size |
-| `DMR_EVENT_START_EXPAND_SLURM` | Resources requested from Slurm |
-| `DMR_EVENT_START_EXPAND_MPI` | MPI expansion process started |
-| `DMR_EVENT_START_SHRINK` | Shrink triggered |
-| `DMR_EVENT_DATA_REDIST_COMPLETE` | Data redistribution finished |
+| `DMR_EVENT_STAY_CURRENT` | The configuration is left unchanged |
+| `DMR_EVENT_EXPAND_RESOURCES_START` | `dmr_check` requested more resources from the resource manager |
+| `DMR_EVENT_DVM_WAIT_START` | The resource manager answered; the DVM is bringing the granted nodes up |
+| `DMR_EVENT_EXPAND_RESOURCES_END` | The requested resources were reported ready |
+| `DMR_EVENT_SHRINK_TRIGGERED` | `dmr_check` started a shrink |
+| `DMR_EVENT_INTERNAL_STATE_STORE_START` / `_END` | DMR stores its internal state for the relaunch |
+| `DMR_EVENT_SPAWN_START` / `_END` | DMR spawns the new processes |
+| `DMR_EVENT_REDIST_PARENT_START` / `_END` | The application sends data to the incoming processes |
+| `DMR_EVENT_REDIST_CHILD_START` / `_END` | The application receives data from the outgoing processes |
+| `DMR_EVENT_RECONFIG_COMPLETE` | Every step of a reconfiguration completed |
 | `DMR_EVENT_TALP_CHECK_CE_ACC` | TALP communication efficiency check performed |
 | `DMR_EVENT_LAST_FINALIZE` | `dmr_finalize` called outside a reconfiguration |
 
+Between `EXPAND_RESOURCES_START` and `DVM_WAIT_START` the wait is the scheduler's, and after it the runtime's. `DVM_WAIT_START` is only emitted where the resource provider answers in two phases.
+
+A `_START` event does not guarantee a matching `_END`. An expansion request that fails or is cancelled records neither. `DVM_WAIT_START` and `EXPAND_RESOURCES_END` carry the time the resource manager or the DVM reported, so they can be printed after events with a later time.
+
+The macro names are API. The strings they expand to may change in a minor release, so compare against the macro.
+
 ## Custom analytics events
 
-You can emit your own analytics lines at any point using `dmr_create_custom_analytics_event`. This creates a snapshot of the current DMR runtime state tagged with your event string, which is then printed in the same format as built-in events and can be read by the notebook.
+Print your own analytics line at any point with `dmr_print_custom_analytics_event`. It labels a snapshot of the current DMR runtime state with your event string and prints it in the same format as built-in events, so the notebook can read it.
 
 ```c
-DMRAnalytics *event;
-
-// Create a snapshot tagged with your event name
-dmr_create_custom_analytics_event("MY_APP_PHASE_START", &event);
-
-// Print it (only emits a line if DMR_PRINT_ANALYTICS=1)
-dmr_print_analytics_from(event);
-
-// Free when done
-dmr_destroy_custom_analytics_event(event);
+dmr_print_custom_analytics_event("MY_APP_PHASE_START");
 ```
 
-The event string must not collide with the built-in `DMR_EVENT_*` constants.
+It prints only when analytics are enabled. The `DMR_EVENT_` prefix is reserved for DMR's own events: an event starting with it returns `DMR_ERROR_BAD_ARGS`.
 
 ## Visualizing with the Jupyter notebook
 

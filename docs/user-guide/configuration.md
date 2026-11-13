@@ -22,19 +22,22 @@ cmake -B build \
 | Option | Default | Description |
 |--------|---------|-------------|
 | `CMAKE_INSTALL_PREFIX` | system default | Installation directory for headers and `libdmr` |
-| `SLURM4DMR` | `0` | Build for the Slurm4DMR backend (nested Slurm) instead of DMR@Jobs. Requires `SLURM4DMR_ROOT` (or `SLURM4DMR_LIB_DIR`/`SLURM4DMR_BIN_DIR`/`SLURM4DMR_INCLUDE_DIR`) |
 | `DMR_PROCS_PER_NODE` | `1` | Processes spawned per node added in an expand |
 | `DMR_USE_TALP` | `0` | Compile with DLB/TALP (required by the CE policy) |
 | `DMR_BUILD_TEST_POLICIES` | `ON` | Build the round and list policies (`dmr_test_policies.h`) |
 | `DMR_BUILD_CE_POLICY` | `ON` when `DMR_USE_TALP=1` | Build the CE policy (`dmr_CE_policy.h`). Requires `DMR_USE_TALP=1` |
-| `DMR_CHECKPOINT_RESTART` | `1` | Use checkpoint-restart for reconfigurations. Set to `0` to use the intercommunicator (`DMR_INTERCOMM`) instead |
-| `DMR_JOBS_CAN_SHRINK` | `1` | Enable Slurm job shrinking |
-| `DMR_JOBS_CAN_GROW` | `0` | Enable Slurm job growing (requires `DMR_JOBS_CAN_SHRINK=1`) |
+| `DMR_MECHANISM` | `spawn` | Reconfiguration mechanism: `spawn` (`MPI_Comm_spawn_multiple`, data over `DMR_INTERCOMM`) or `cr` (checkpoint-restart through the wrapper) |
+| `DMR_CAN_RELEASE_SINGLE_NODES` | `1` | Whether the resource manager can release individual nodes. Set to `0` where it cannot; shrinks then fall on allocation boundaries |
+| `DMR_CAP_PROCS_TO_SLOTS` | `1` | Trim each added node to the slots it reports. Set to `0` to allow oversubscription, together with `--map-by slot:OVERSUBSCRIBE` |
 | `DMR_BLOCKING_REQ` | `0` | Block in `dmr_check` until resources are acquired. Useful with Slurm4DMR |
 | `DMR_NODES_IN_EXPAND` | `1` | Default nodes to add per expand step |
 | `DMR_NODES_IN_SHRINK` | `1` | Default nodes to remove per shrink step |
-| `DMR_SKIP_SSH_CHECK` | `0` | Skip SSH health check on new nodes before expanding |
-| `DMR_SSH_CHECK_TIMEOUT` | `20` | Seconds to wait for SSH health check before continuing |
+
+Every runtime setting below can also be set as a CMake variable of the same name, which changes its compiled default.
+
+### Removed settings
+
+Configuring with a setting removed in 3.0.0 stops CMake when ignoring it would change the build, and names the replacement. Otherwise CMake warns. See [Migrating from 2.x](../getting-started/migrating-from-2x).
 
 ## Runtime environment variables
 
@@ -52,6 +55,8 @@ cmake -B build \
 | `DMR_NODES_IN_EXPAND` | `1` | Default nodes per expand |
 | `DMR_NODES_IN_SHRINK` | `1` | Default nodes per shrink |
 | `DMR_PROCS_PER_NODE` | *(from CMake)* | Processes per node in an expand |
+| `DMR_CAP_PROCS_TO_SLOTS` | `1` | Trim each added node to the slots it reports |
+| `DMR_BLOCKING_REQ` | `0` | Block in `dmr_check` until resources are acquired |
 
 ### Policy
 
@@ -85,4 +90,5 @@ dmr_set_ppn_next_expand(8);
 dmr_set_procs_next_expand(32);
 dmr_set_nodes_next_shrink(2);
 dmr_set_procs_next_shrink(16);
+dmr_set_allocs_next_shrink(1);   /* release whole allocations */
 ```

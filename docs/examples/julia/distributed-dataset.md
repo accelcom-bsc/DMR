@@ -78,7 +78,7 @@ minidmr stop
 
 ## How the data moves
 
-The data is sent through DMR's *intercommunicator*: an MPI communicator that connects the processes of the old generation with those of the new one during a reconfiguration. See [Data Redistribution](../../user-guide/data-redistribution#intercommunicator) for the full picture.
+The data is sent through DMR's *intercommunicator*: an MPI communicator that connects the processes of the old generation with those of the new one during a reconfiguration. See [Data Redistribution](../../user-guide/data-redistribution#spawn-intercommunicator) for the full picture.
 
 The program gives DMR two functions, one for each side of the move:
 

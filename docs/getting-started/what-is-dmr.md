@@ -37,7 +37,7 @@ DMR is an MPI malleability framework that helps HPC applications adapt their res
   </figcaption>
 </figure>
 
-DMR is developed and maintained by the [Barcelona Supercomputing Center](https://www.bsc.es/) and it is distributed under the **GNU General Public License, Version 2 (GPLv2)**.
+DMR is developed and maintained by the [Barcelona Supercomputing Center](https://www.bsc.es/) and it is distributed under the **BSD 3-Clause License**. Releases before 3.0.0 remain under the GNU General Public License, Version 2.
 
 ## Why DMR exists
 

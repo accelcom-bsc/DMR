@@ -107,11 +107,11 @@ The job starts on a single node. While it runs, the program asks DMR for more no
 `run_test.sh` takes care of the launch command. It turns the Slurm allocation into a host list and runs:
 
 ```bash
-dmr_wrapper mpirun --host <hosts> -x PATH -x DMR_PATH \
+dmr mpirun --host <hosts> -x PATH -x DMR_PATH \
     julia -t 1 --project=. tests/integration/hello_world.jl
 ```
 
-- `dmr_wrapper` is required: DMR relaunches the program on every reconfiguration, and the wrapper keeps DMR's state between those relaunches.
+- `dmr` is required: DMR relaunches the program on every reconfiguration, and the wrapper keeps DMR's state between those relaunches.
 - `-x PATH -x DMR_PATH` pass your environment to the processes DMR starts later, so they find the same `julia` and the same DMR.
 - `-t 1` runs Julia with a single thread, which avoids a crash in Julia's task scheduler when the process exits.
 

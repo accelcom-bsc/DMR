@@ -14,7 +14,7 @@ This page explains how to install the bindings and how to write and launch a mal
 
 ### 1. DMR
 
-The package needs a built DMR, with `$DMR_PATH` pointing at its install prefix (`$DMR_PATH/lib/libdmr.so`), or `libdmr.so` on the library search path. See [Installation](../../getting-started/installation), or use `module load dmr` on MN5. `import dmr` works without it; the first call into DMR fails with instructions.
+The package needs a built DMR, with `$DMR_PATH` pointing at its install prefix (`$DMR_PATH/lib/libdmr.so`), or `libdmr.so` on the library search path. See [Installation](../../getting-started/installation), or use `module load dmr/3.0.0-alpha` on MN5. `import dmr` works without it; the first call into DMR fails with instructions.
 
 ### 2. Python and mpi4py
 
@@ -72,10 +72,10 @@ dmr.auto(dmr.finalize())
 Launch it through DMR's wrapper, not a plain `mpirun`:
 
 ```bash
-dmr_wrapper mpirun --host <hosts> -x PATH -x DMR_PATH python myprogram.py
+dmr mpirun --host <hosts> -x PATH -x DMR_PATH python myprogram.py
 ```
 
-- `dmr_wrapper` is mandatory: DMR relaunches the program for every reconfiguration, and the wrapper keeps its state across generations.
+- `dmr` is mandatory: DMR relaunches the program for every reconfiguration, and the wrapper keeps its state across generations.
 - `-x PATH -x DMR_PATH` let the processes DMR spawns for later generations find the same `python` and the same DMR. The relaunch uses the exact interpreter that started the program (`sys.executable`), so a virtualenv's `python` is preserved.
 
 ## Mapping from the C API

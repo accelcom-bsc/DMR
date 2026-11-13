@@ -52,7 +52,7 @@ flowchart TD
     E --> F["returns DMRAction<br/>DMR_NO_ACTION / DMR_RECONF"]
 ```
 
-Every rank evaluates `run` and computes the same suggestion independently: DMR does **not** broadcast the decision, so `run` must be deterministic for a given context. Only rank 0 actually stores the result, through the root-only sizing setters. Non-root ranks learn the outcome later, through the normal intercommunicator merge once root has driven the Slurm request.
+Every rank evaluates `run` and computes the same suggestion independently: DMR does **not** broadcast the decision, so `run` must be deterministic for a given context. Only rank 0 actually stores the result, through the root-only sizing setters. Non-root ranks learn the outcome from rank 0 once the requested resources are ready.
 
 ## What DMR enforces, and what it does not
 
@@ -65,7 +65,7 @@ What DMR checks before acting on a suggestion is only whether the request makes 
 | Expand | The request adds zero (or fewer) nodes, or zero (or fewer) processes |
 | Shrink | It removes nothing, a negative amount, or every node or process the job is running on |
 
-A rejected suggestion makes `dmr_check` return `DMR_NO_ACTION`. A request that is merely large is passed on to Slurm, which is the component that decides whether it can be served.
+A rejected suggestion makes `dmr_check` return `DMR_NO_ACTION`. A request that is merely large is passed on to the resource manager, which decides whether it can be served.
 
 ## Configuring policies
 
@@ -124,4 +124,4 @@ Or at compile/run time: `DMR_DEFAULT_INHIBITOR=9`.
 | `dmr_set_policy_stride(n)` | `DMR_DEFAULT_POLICY_STRIDE=n` in the environment, or custom policy state |
 | `dmr_set_policy_pref_nodes(n)` | Removed along with `DMR_DEFAULT_POLICY_PREF` |
 
-Manual control (`SHOULD_EXPAND`, `SHOULD_SHRINK`, `SHOULD_STAY`) and every `dmr_set_*_next_*` sizing call are unchanged.
+Manual control (`SHOULD_EXPAND`, `SHOULD_SHRINK`, `SHOULD_STAY`) is unchanged. Of the sizing calls, `dmr_set_jobs_next_shrink()` is now `dmr_set_allocs_next_shrink()`, and `dmr_get_active_expansions()` is now `dmr_get_active_allocations() - 1`.
