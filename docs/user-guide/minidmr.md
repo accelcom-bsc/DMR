@@ -55,6 +55,26 @@ import TabItem from '@theme/TabItem';
 
 For manual installation, download the binary from the [Releases page](https://gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr/-/releases).
 
+## Available images
+
+Images are published in `registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr`. Select one with `minidmr start -i <image>`.
+
+| Tag | DMR version | Description |
+|-----|-------------|-------------|
+| `dmr-2.0.0` | 2.0.0 | **Default** when `-i` is omitted. Legacy image, does not match the v3 guides |
+| `dmr-3.0.0` | 3.0.0 | DMR 3.0.0 preinstalled. Recommended for the [Quickstart](../getting-started/quickstart.md) |
+| `dmr-3.0.0-cr0` | 3.0.0 | DMR 3.0.0 built with `DMR_CHECKPOINT_RESTART=0` (checkpoint/restart disabled at build time) |
+
+For example:
+
+```bash
+minidmr start --nodes 4 -i registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-3.0.0
+```
+
+:::note
+When switching between images, run `minidmr stop` and `docker volume rm etc_slurm` first, since a stale Slurm configuration from the previous image can prevent jobs from starting.
+:::
+
 ## Commands
 
 | Command | Description |
@@ -146,7 +166,7 @@ The `build_slurm4dmr_notalp.sh` script is compatible with MiniDMR out of the box
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-i, --image` | Container image to use | `slurm-docker-cluster:slurm4dmr` |
+| `-i, --image` | Container image to use, see [Available images](#available-images) | `registry.gitlab.bsc.es/accelcom/releases/dmr/tools/minidmr:dmr-2.0.0` |
 | `-n, --nodes` | Number of `slurmd` nodes | `4` |
 | `--packages-file` | JSON package manifest installed after startup | `$data_dir/packages.json` if it exists |
 | `--no-user-setup` | Skip creating/configuring the demo user, for images that already ship with the target user | `false` |
