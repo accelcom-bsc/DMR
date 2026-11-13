@@ -1,0 +1,11 @@
+{
+  "theme.docs.versions.unreleasedVersionLabel": {
+    "message": "This is the documentation for {siteTitle} {versionLabel}, a pre-release. Its API may still change."
+  },
+  "theme.docs.versions.latestVersionSuggestionLabel": {
+    "message": "See the {latestVersionLink} for {versionLabel}, the latest release."
+  },
+  "theme.docs.versions.latestVersionLinkLabel": {
+    "message": "current documentation"
+  }
+}

@@ -4,7 +4,7 @@ sidebar_label: Python
 title: Python Bindings
 ---
 
-The `dmr` Python package gives Python programs access to DMR's C API, so an `mpi4py` program can grow and shrink while it runs. It lives in its own repository, [`python-dmr`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr), separate from DMR itself.
+The `dmr` Python package gives Python programs access to DMR's C API, so an `mpi4py` program can grow and shrink while it runs. It lives in its own repository, [`python-dmr`](https://gitlab.bsc.es/accelcom/releases/dmr/bindings/python-dmr), separate from DMR itself.
 
 The package is pure Python on top of `ctypes`: nothing is compiled when it is installed, and the only thing it needs from DMR at run time is an installed `libdmr.so`. The same package works on any machine, against the DMR built for that machine.
 
@@ -28,7 +28,7 @@ MPICC=$(which mpicc) pip install --no-binary mpi4py "mpi4py>=4.0"
 ### 3. The package
 
 ```bash
-pip install git+https://gitlab.bsc.es/accelcom/releases/dmr/tools/python-dmr.git
+pip install git+https://gitlab.bsc.es/accelcom/releases/dmr/bindings/python-dmr.git
 ```
 
 Or, to work on the bindings themselves, `pip install -e /path/to/python-dmr` from a local clone.

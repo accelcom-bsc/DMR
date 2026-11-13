@@ -4,7 +4,7 @@ sidebar_label: Julia
 title: Julia Bindings
 ---
 
-`DMR.jl` gives Julia programs access to DMR's C API, so an MPI program written in Julia can grow and shrink while it runs. It is a regular Julia package that lives in its own repository, [`julia-dmr`](https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr), separate from DMR itself.
+`DMR.jl` gives Julia programs access to DMR's C API, so an MPI program written in Julia can grow and shrink while it runs. It is a regular Julia package that lives in its own repository, [`julia-dmr`](https://gitlab.bsc.es/accelcom/releases/dmr/bindings/julia-dmr), separate from DMR itself.
 
 `libdmr` is never shipped with the package. It is located through `$DMR_PATH` when the module loads, so the same package works against any DMR installation built for the machine it runs on.
 
@@ -30,7 +30,7 @@ From the project your application runs in:
 
 ```julia
 using Pkg
-Pkg.add(url = "https://gitlab.bsc.es/accelcom/releases/dmr/tools/julia-dmr.git")
+Pkg.add(url = "https://gitlab.bsc.es/accelcom/releases/dmr/bindings/julia-dmr.git")
 # or, to work on the bindings themselves, from a local clone:
 Pkg.develop(path = "/path/to/julia-dmr")
 ```
